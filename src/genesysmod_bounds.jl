@@ -238,7 +238,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
     #
 
     if Switch.switch_ccs == 1
-        for r ∈ Sets.Region_full for t ∈ Params.TagTechnologyToSubsets["CCS"]
+        for r ∈ Sets.Region_full for t ∈ intersect(Sets.Technology, Params.TagTechnologyToSubsets["CCS"])
             Params.AvailabilityFactor[r,t,:] .= 0
             Params.TotalAnnualMaxCapacity[r,t,:] .= 99999
             Params.TotalTechnologyAnnualActivityUpperLimit[r,t,:] .= 99999
@@ -250,7 +250,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
                     Params.AvailabilityFactor[r,t,y] = 0.95
                 end
             else 
-                for t ∈ Params.TagTechnologyToSubsets["CCS"]
+                for t ∈ intersect(Sets.Technology, Params.TagTechnologyToSubsets["CCS"])
                     Params.TotalAnnualMaxCapacity[r,t,y] = 0
                     Params.TotalTechnologyAnnualActivityUpperLimit[r,t,y] = 0
                     for f ∈ Maps.Tech_Fuel[t]
@@ -263,7 +263,10 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         Params.TotalAnnualMaxCapacity[Sets.Region_full,"A_Air",:] .= 99999
         Params.TotalTechnologyAnnualActivityUpperLimit[Sets.Region_full,"A_Air",:] .= 99999
 
-        Params.EmissionActivityRatio[Sets.Region_full,["X_DAC_HT","X_DAC_LT"],:,:,:] .= -1
+        for t ∈ intersect(Sets.Technology, ["X_DAC_HT","X_DAC_LT"])
+            Params.EmissionActivityRatio[Sets.Region_full,t,:,:,:] .= -1
+        end
+
 
     else
         for y ∈ Sets.Year for r ∈ Sets.Region_full for t ∈ intersect(Sets.Technology, Params.TagTechnologyToSubsets["CCS"])
