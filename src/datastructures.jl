@@ -329,7 +329,6 @@ struct Variables
     VariableOperatingCost ::JuMP.Containers.DenseAxisArray
     TotalDiscountedCost ::JuMP.Containers.DenseAxisArray
     TotalDiscountedCostByTechnology ::JuMP.Containers.DenseAxisArray
-    ModelPeriodCostByRegion ::JuMP.Containers.DenseAxisArray
     AnnualCurtailmentCost ::JuMP.Containers.DenseAxisArray
     DiscountedAnnualCurtailmentCost ::JuMP.Containers.DenseAxisArray
 
