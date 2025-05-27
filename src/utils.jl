@@ -483,8 +483,10 @@ function read_capacities(; file, nam, year, technology, region)
                 y = parse(Int, split(split(line, "[")[2], ",")[1])
                 tech = split(split(line, "[")[2], ",")[2]
                 r = split(split(split(line, "[")[2], ",")[3], "]")[1]
-                if tech ∈ technology && y ∈ year && r ∈ region
+                if tech ∈ technology && y ∈ year  && r ∈ region
                     A[y, tech, r] = parse(Float64, split(split(split(split(line, "[")[2], ",")[3], "]")[2], "= ")[2])
+                    #A[y, tech, "DE"] += parse(Float64, split(split(split(split(line, "[")[2], ",")[3], "]")[2], "= ")[2])
+
                 end
             end
         end
@@ -518,6 +520,7 @@ function read_trade_capacities(; file, nam, year, technology, region)
 end
 
 function read_storage_capacities(; file, nam, year, technology, region)
+    # new storage capacity sum it up to 2050
     A = JuMP.Containers.DenseAxisArray(
         zeros(length(technology), length(year), length(region)), 
         technology, [2050], region)
@@ -532,12 +535,36 @@ function read_storage_capacities(; file, nam, year, technology, region)
                 tech = split(parts[2],",")[1]
                 r = split(split(parts[2],",")[3],"]")[1]
     
-                if r ∈ region && tech ∈ technology
+                if tech ∈ technology   &&r ∈ region  y ∈ year 
                     value = parse(Float64, split(split(line, "]")[2], "= ")[2])
-                    A[tech, 2050, r] += value
+                    A[tech, 2050, r] = value
+                    #A[tech, 2050, "DE"] += value
                 end
             end
         end
     end
+    return A
+end
+
+
+function read_activity_by_mode(; file, nam, year, technology, mode, region)
+    A = JuMP.Containers.DenseAxisArray(
+        zeros(length(year), length(technology), length(mode), length(region)), 
+        year, technology, mode, region)
+
+    open(file, "r") do f
+        while !eof(f)
+            line = readline(f)
+            if startswith(line, nam)
+                y = parse(Int, split(split(line, "[")[2], ",")[1])
+                tech = split(split(line, "[")[2], ",")[2]
+                m = parse(Int,split(split(line, "[")[2], ",")[3])
+                r = split(split(split(line, "[")[2], ",")[4], "]")[1]
+                if tech ∈ technology && y ∈ year  && r ∈ region && m ∈ mode 
+                    A[y, tech, m, r] = parse(Float64, split(line, "=")[2])
+                end
+            end
+        end
+    end  
     return A
 end

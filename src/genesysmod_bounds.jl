@@ -71,6 +71,11 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
                 Params.TradeCosts[f,r,rr] = 0.01
     end end end
 
+    f = "H2"
+    for r ∈ Sets.Region_full, rr ∈ Sets.Region_full
+        Params.TradeCosts[f,r,rr] = 0.01
+    end
+
     for r ∈ Sets.Region_full
         for t ∈ Sets.Technology
             for m ∈ Sets.Mode_of_operation
@@ -120,15 +125,14 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
     # ####### Bounds for non-supply technologies #############
     #
 
-    for r ∈ Sets.Region_full
-        for t ∈ Sets.Technology
-            if t ∈ vcat(Params.TagTechnologyToSubsets["Transformation"],Params.TagTechnologyToSubsets["FossilPower"],Params.TagTechnologyToSubsets["FossilFuelGeneration"],
-                Params.TagTechnologyToSubsets["CHP"],Params.TagTechnologyToSubsets["Transport"],Params.TagTechnologyToSubsets["ImportTechnology"],Params.TagTechnologyToSubsets["Biomass"],"P_Biomass")
-                for y ∈ Sets.Year
-                    Params.TotalAnnualMaxCapacity[r,t,y] = 999999
-                end
+    for r ∈ Sets.Region_full, y ∈ Sets.Year
+        for t ∈ intersect(Sets.Technology, vcat(Params.TagTechnologyToSubsets["Transformation"],Params.TagTechnologyToSubsets["FossilPower"],Params.TagTechnologyToSubsets["FossilFuelGeneration"],
+        Params.TagTechnologyToSubsets["CHP"],Params.TagTechnologyToSubsets["Transport"],Params.TagTechnologyToSubsets["ImportTechnology"],Params.TagTechnologyToSubsets["Biomass"],"P_Biomass"))
+            if t ∉ ["P_Nuclear"]
+                Params.TotalAnnualMaxCapacity[r,t,y] = 999999
             end
-    end end
+        end
+    end
 
     for r ∈ Sets.Region_full
         for t ∈ Params.TagTechnologyToSubsets["ImportTechnology"]
@@ -156,23 +160,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
             Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] = 999999
     end end
 
-    #
-    # ####### Bounds for storage technologies #############
-    #
-
-
-    #
-    # ####### Capacity factor for heat technologies #############
-    #
-    # TO DO: ask konstantin for reason behind this and possibility to simplify
-    #CapacityFactor(r,Heat,l,y)$(sum(ll,CapacityFactor(r,Heat,ll,y)) = 0) = 1;
-    #Params.CapacityFactor[[x ∈ Subsets.Heat for x ∈ Params.CapacityFactor[!,:Technology]], :Value] .= 1
-
-    for r ∈ Sets.Region_full, l ∈ Sets.Timeslice, y ∈ Sets.Year, t ∈ intersect(Sets.Technology, ["HLI_Solar_Thermal", "HLR_Solar_Thermal", "RES_PV_Rooftop_Residential"])
-        Params.CapacityFactor[r,t,l,y] = Params.CapacityFactor[r,"RES_PV_Rooftop_Commercial",l,y]
-    end
-    #
-    # ####### No new capacity construction in 2015 #############
+   # ####### No new capacity construction in 2015 #############
     #
     if Switch.switch_dispatch == 0
         for r ∈ Sets.Region_full
@@ -221,17 +209,17 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
     #
     subs = vcat(intersect(Sets.Technology, Params.TagTechnologyToSubsets["Solar"]), intersect(Sets.Technology, Params.TagTechnologyToSubsets["Wind"]), ["RES_Hydro_Small"])
     Params.TagDispatchableTechnology[subs] = zeros(length(intersect(Sets.Technology,subs)))
-    Params.CurtailmentCostFactor == 0.1
+    Params.CurtailmentCostFactor == 0
 
     for r ∈ Sets.Region_full, t ∈ intersect(Sets.Technology,Params.TagTechnologyToSubsets["Solar"])
         Params.AvailabilityFactor[r,t,:] .= 1
     end
 
-    for e ∈ Sets.Emission for s ∈ Sets.Sector for y ∈ Sets.Year
-        if Params.AnnualSectoralEmissionLimit[e,s,y] == 0
-            Params.AnnualSectoralEmissionLimit[e,s,y] = 999999
-        end
-    end end end
+    # for e ∈ Sets.Emission for s ∈ Sets.Sector for y ∈ Sets.Year
+    #     if Params.AnnualSectoralEmissionLimit[e,s,y] == 0
+    #         Params.AnnualSectoralEmissionLimit[e,s,y] = 999999
+    #     end
+    # end end end
 
     #
     # ####### CCS #############
@@ -277,10 +265,8 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
             end
         end end end
     end
-
-
     #
-    # ####### Ramping #############
+    # ####### Ramping ############
     #
     #$ontext
     if Switch.switch_ramping == 1
@@ -328,24 +314,29 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         end end
     end
 
+    
+
     #marginal costs for better numerical stability
     for r ∈ Sets.Region_full for t ∈ Sets.Technology for y ∈ Sets.Year
         if Params.CapitalCost[r,t,y] == 0
             Params.CapitalCost[r,t,y] = 0.01
         end
+        if occursin("Wind", t)
+            Params.CapitalCost[r,t,y] = Params.CapitalCost[r,t,y] * 0.7
+        end
     end end end
 
 
-    for r ∈ Sets.Region_full for i ∈ 1:length(Sets.Timeslice) for y ∈ Sets.Year
-        for s in intersect(Sets.Storage, ["S_Battery_Li-Ion","S_Battery_Redox","S_Heat_HLR", "S_Heat_HLI"])
-            if (i-1 + Switch.elmod_starthour/Switch.elmod_hourstep) % (24/Switch.elmod_hourstep) == 0
-                JuMP.fix(Vars.StorageLevelTSStart[s,y,Sets.Timeslice[i],r], 0; force = true)
-            end
+    for r ∈ Sets.Region_full, i ∈ 1:length(Sets.Timeslice), y ∈ Sets.Year
+        # for s in intersect(Sets.Storage, ["S_Battery_Li-Ion","S_Battery_Redox","S_Heat_HLR", "S_Heat_HLI"])
+        #     if (i-1 + Switch.elmod_starthour/Switch.elmod_hourstep) % (24/Switch.elmod_hourstep) == 0
+        #         JuMP.fix(Vars.StorageLevelTSStart[s,y,Sets.Timeslice[i],r], 0; force = true)
+        #     end
 #=         for s in intersect(Sets.Storage, ["S_CAES"])
             if (i-1 + Switch.elmod_starthour/Switch.elmod_hourstep) % (48/Switch.elmod_hourstep) == 0
                 JuMP.fix(Vars.StorageLevelTSStart[s,y,Sets.Timeslice[i],r], 0; force = true)
             end =#
-        end
+        #end
         if "RES_CSP" ∈ Sets.Technology
             try
                 Params.CapacityFactor[r,"RES_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"RES_PV_Utility_Opt",Sets.Timeslice[i],y]
@@ -355,11 +346,17 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
                 end
             end
         end
-
         for t ∈ intersect(Sets.Technology, ["HLI_Solar_Thermal", "HLR_Solar_Thermal", "RES_PV_Rooftop_Commercial", "RES_PV_Rooftop_Residential"])
             Params.CapacityFactor[r,t,Sets.Timeslice[i],y] = Params.CapacityFactor[r,"RES_PV_Utility_Avg",Sets.Timeslice[i],y]
         end
-    end end end
+    end
+
+    #Params.ResidualCapacity["DE", "D_Battery_Li-Ion",2050] = 35.14547901648507
+    #Params.ResidualStorageCapacity["DE", "S_Gas_H2", 2050] =  18.297023209681292
+    #Params.ResidualStorageCapacity["DE", "S_Battery_Li-Ion",2050] = 3.37426120517831
+
+
+
 
     #for r ∈ Sets.Region_full for s in Sets.Storage for y ∈ Sets.Year
         #Params.CapitalCostStorage[r,s,y] = CapitalCostStorage[r,s,y]/365*8760/Switch.elmod_nthhour/(24/Switch.elmod_hourstep)

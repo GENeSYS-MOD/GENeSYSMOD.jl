@@ -58,7 +58,7 @@ end
 
 """
 function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand)
-
+    starttime = Dates.now()
     switch_dunkelflaute = Switch.elmod_dunkelflaute
 
     keys_mapping = Dict(
@@ -89,14 +89,13 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
         "Transportation"=>"MOBILITY_PSNG",
         "Power"=>"LOAD")
 
-    Timeslice_Full = 1:8760
-
     hourly_data = XLSX.readxlsx(joinpath(Switch.inputdir, Switch.hourly_data_file * ".xlsx"))
 
     CountryData = Dict()
     for v ∈ Country_Data_Entries
         CountryData[v] = DataFrame(XLSX.gettable(hourly_data["TS_" * v]))
         select!(CountryData[v], Not([:HOUR]))
+        select!(CountryData[v], Sets.Region_full)
     end
 
     Dunkelflaute = Dict(x => mapcols(col -> col*0.0, CountryData[x]) for x ∈ Country_Data_Entries)
@@ -117,12 +116,149 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
         x_peakingDemand[r,s] = df_peakingDemand[s][1,r]
     end
 
-    negativeCDE = Dict(x => mapcols(col -> min.(col,0), CountryData[x]) for x ∈ Country_Data_Entries)
+    Timeslice_full = 1:8760
+    switch_dunkelflaute = 0
+
+    if Switch.switch_dispatch == 1
+        Timeslice = 1:8760
+        elmod_nthhour = 1
+    else
+        elmod_nthhour = floor(Int, (8760/(Switch.elmod_nthhour*24)))
+        lenth_must = Switch.elmod_nthhour * 24
+        Timeslice = [x for x in Timeslice_full if (x-Switch.elmod_starthour)%(elmod_nthhour) == 0][1:lenth_must]
+    end
+
+
+    
+    # check if nan value otherwise increase resolution by 1
+    k=-1
+    j = true
+    while j == true
+        k+=1
+        ScaledCountryData = time_series_optimization(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand, k,CountryData, Country_Data_Entries,x_peakingDemand,Dunkelflaute,SmoothedCountryData,ScaledCountryData,AverageCapacityFactor)
+        j = false 
+        for cde ∈ Country_Data_Entries, r ∈ Sets.Region_full 
+            if sum(SmoothedCountryData[cde][:,r]) == 0
+                j = true
+                break
+            end
+        end                      
+    end
+
+
+    YearSplit = JuMP.Containers.DenseAxisArray(ones(length(Timeslice), length(Sets.Year)) * 1/length(Timeslice), Timeslice, Sets.Year)
+
+    sdp_list=intersect(Sets.Fuel, ["Power","Mobility_Passenger","Mobility_Freight","Heat_Low_Residential","Heat_Low_Industrial","Heat_Medium_Industrial","Heat_High_Industrial"])
+    capf_list=intersect(Sets.Technology, ["HLR_Heatpump_Aerial","HLR_Heatpump_Ground","RES_PV_Utility_Opt","RES_Wind_Onshore_Opt","RES_Wind_Offshore_Transitional","RES_Wind_Onshore_Avg","RES_Wind_Offshore_Shallow","RES_PV_Utility_Inf",
+    "RES_Wind_Onshore_Inf","RES_Wind_Offshore_Deep","RES_PV_Utility_Tracking","RES_Hydro_Small", "RES_PV_Utility_Avg"])
+    SpecifiedDemandProfile = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full), length(Sets.Fuel), length(Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Fuel, Timeslice, Sets.Year)
+    CapacityFactor = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Sets.Technology), length(Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Technology, Timeslice, Sets.Year)
+
+    tmp = ScaledCountryData["LOAD"] ./ length(Timeslice)
+    for r ∈ Sets.Region_full
+        for f ∈ Sets.Fuel
+            if sum(SpecifiedAnnualDemand[r,f,:]) != 0
+                SpecifiedDemandProfile[r,f,:,Sets.Year[1]] = tmp[Timeslice,r]
+            end
+        end
+    end
+
+    tmp=Dict()
+    for t ∈ intersect(Country_Data_Entries, ["MOBILITY_PSNG", "HEAT_LOW", "HEAT_HIGH"])
+        println(combine(ScaledCountryData[t], names(ScaledCountryData[t]) .=> sum, renamecols=false))
+        tmp[t] = ScaledCountryData[t] ./ combine(ScaledCountryData[t], names(ScaledCountryData[t]) .=> sum, renamecols=false)
+    end
+
+    for r ∈ Sets.Region_full, (k,v) ∈ Dict("Mobility_Passenger" => "MOBILITY_PSNG", "Mobility_Freight" => "MOBILITY_PSNG", "Heat_Low_Residential" => "HEAT_LOW", "Heat_Low_Industrial"=>"HEAT_HIGH", "Heat_Medium_Industrial"=>"HEAT_HIGH","Heat_High_Industrial"=>"HEAT_HIGH") 
+        if k ∈ sdp_list
+            SpecifiedDemandProfile[r,k,:,Sets.Year[1]] = tmp[v][Timeslice,r]
+            for l ∈ Timeslice
+                if isnan(SpecifiedDemandProfile[r,k,l,Sets.Year[1]])
+                    println(k,r,v)
+                end
+            end
+        end
+    end
+
+    for r ∈ Sets.Region_full for f ∈ Sets.Fuel for y ∈ Sets.Year[2:end]
+        SpecifiedDemandProfile[r,f,:,y] = SpecifiedDemandProfile[r,f,:,Sets.Year[1]]
+    end end end
+    
+    TimeDepEfficiency = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Sets.Technology), length(Sets.Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Technology, Sets.Timeslice, Sets.Year)
+
+    for y ∈ Sets.Year
+        for t ∈ intersect(Sets.Technology, TagTechnologyToSubsets["Solar"])
+            CapacityFactor[:,t,:,y] .= 0
+        end
+        for t ∈ intersect(Sets.Technology, TagTechnologyToSubsets["Wind"])
+            CapacityFactor[:,t,:,y] .= 0
+        end
+        for r ∈ Sets.Region_full 
+            if length(Timeslice) < 8760
+                if "HLR_Heatpump_Aerial" ∈ capf_list
+                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] .= 1
+                    TimeDepEfficiency[r,"HLR_Heatpump_Aerial",:,y] = ScaledCountryData["HP_AIRSOURCE"][Timeslice,r]
+                end
+                if "HLR_Heatpump_Ground" ∈ capf_list
+                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] .= 1
+                    TimeDepEfficiency[r,"HLR_Heatpump_Ground",:,y] = ScaledCountryData["HP_GROUNDSOURCE"][Timeslice,r]
+                end
+
+                for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
+                    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][Timeslice,r]
+                end
+            else
+                if "HLR_Heatpump_Aerial" ∈ capf_list
+                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] = CountryData["HP_AIRSOURCE"][:,r]
+                end
+                if "HLR_Heatpump_Ground" ∈ capf_list
+                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] = CountryData["HP_GROUNDSOURCE"][:,r]
+                end
+
+                for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
+                    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][:,r]
+                end
+            end
+        end
+    end
+    total = Dates.now() - starttime
+    open(joinpath("/cluster/home/danare/git/dana/results/spatial/time.txt"), "a") do file
+        write(file, "$(Switch.hoffmann);$(length(Timeslice)/24);$(length(Timeslice)) $(Switch.warping_window); 0; 0; 0; 0; $total\n")
+    end
+
+    if Switch.write_reduced_timeserie == 1
+        df_SpecifiedDemandProfile = convert_jump_container_to_df(SpecifiedDemandProfile[:,sdp_list,:,:];dim_names=[:Region,:Fuel,:Timeslice,:Year])
+        df_CapacityFactor = convert_jump_container_to_df(CapacityFactor[:,capf_list,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
+        df_x_peakingDemand = convert_jump_container_to_df(x_peakingDemand;dim_names=[:Region,:Sector])
+        df_YearSplit = convert_jump_container_to_df(YearSplit;dim_names=[:Timeslice,:Year])
+        
+        filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(Switch.elmod_nthhour).xlsx"
+        if isfile(filename)
+            rm(filename)
+        end
+        XLSX.writetable(filename,
+        "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, "CapacityFactor" => df_CapacityFactor, "x_peakingDemand" => df_x_peakingDemand,
+        "YearSplit" => df_YearSplit)
+    end
+
+    return SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, TimeDepEfficiency
+end
+
+function time_series_optimization(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand, k,CountryData, Country_Data_Entries,x_peakingDemand,Dunkelflaute,SmoothedCountryData,ScaledCountryData,AverageCapacityFactor)
 
     # choose every %elmod_nthhour% hour starting with the %elmod_starthour%
-    Timeslice = [x for x in Timeslice_Full if (x-Switch.elmod_starthour)%(Switch.elmod_nthhour) == 0]
 
-
+    Timeslice_full = 1:8760
+    switch_dunkelflaute = 0
+    if Switch.switch_dispatch == 1
+        elmod_nthhour = 1
+        Timeslice = 1:8760
+    else
+        elmod_nthhour = floor(Int, (8760/(Switch.elmod_nthhour*24 + k)))
+        lenth_must = Switch.elmod_nthhour * 24 + k
+        Timeslice = [x for x in Timeslice_full if (x-Switch.elmod_starthour)%(elmod_nthhour) == 0][1:lenth_must]
+    end
+    
     LAST_TIMESLICE = Timeslice[end]
     FIRST_TIMESLICE = Timeslice[1]
 
@@ -276,7 +412,7 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
     set_SmoothedCountryDataMin = Dict( cde => DataFrame(Dict(r => Timeslice[set_SmoothedCountryDataMin_tmp[cde][1,r]] for r in Sets.Region_full)) for cde ∈ Country_Data_Entries)
     set_SmoothedCountryDataMax = Dict( cde => DataFrame(Dict(r => Timeslice[set_SmoothedCountryDataMax_tmp[cde][1,r]] for r in Sets.Region_full)) for cde ∈ Country_Data_Entries)
     
-    if Switch.elmod_nthhour == 1
+    if elmod_nthhour == 1
         scaling_exponent = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Country_Data_Entries)), Sets.Region_full, Country_Data_Entries)
         scaling_multiplicator = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Country_Data_Entries)), Sets.Region_full, Country_Data_Entries)
         scaling_addition = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full), length(Country_Data_Entries)), Sets.Region_full, Country_Data_Entries)
@@ -330,95 +466,257 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
     end
 
     for cde ∈ Country_Data_Entries
-        ScaledCountryData[cde] .= round.(ScaledCountryData[cde], digits=6)
+        ScaledCountryData[cde] .= round.(ScaledCountryData[cde], digits=11)
     end
 
+    return ScaledCountryData
+end
 
-    YearSplit = JuMP.Containers.DenseAxisArray(ones(length(Timeslice), length(Sets.Year)) * 1/length(Timeslice), Timeslice, Sets.Year)
 
-    sdp_list=intersect(Sets.Fuel, ["Power","Mobility_Passenger","Mobility_Freight","Heat_Low_Residential","Heat_Low_Industrial","Heat_Medium_Industrial","Heat_High_Industrial"])
-    capf_list=intersect(Sets.Technology, ["HLR_Heatpump_Aerial","HLR_Heatpump_Ground","RES_PV_Utility_Opt","RES_Wind_Onshore_Opt","RES_Wind_Offshore_Transitional","RES_Wind_Onshore_Avg","RES_Wind_Offshore_Shallow","RES_PV_Utility_Inf",
-    "RES_Wind_Onshore_Inf","RES_Wind_Offshore_Deep","RES_PV_Utility_Tracking","RES_Hydro_Small", "RES_PV_Utility_Avg"])
-    SpecifiedDemandProfile = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full), length(Sets.Fuel), length(Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Fuel, Timeslice, Sets.Year)
-    CapacityFactor = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Sets.Technology), length(Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Technology, Timeslice, Sets.Year)
 
-    tmp = ScaledCountryData["LOAD"] ./ length(Timeslice)
-    for r ∈ Sets.Region_full
-        for f ∈ Sets.Fuel
-            if sum(SpecifiedAnnualDemand[r,f,:]) != 0
-                SpecifiedDemandProfile[r,f,:,Sets.Year[1]] = tmp[Timeslice,r]
+function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand)
+
+    starttime = Dates.now()
+
+    keys_mapping = Dict(
+        "Power" => "TS_LOAD",
+        "RES_PV_Utility_Avg" => "TS_PV_AVG",
+        "RES_PV_Utility_Inf" => "TS_PV_INF",
+        "RES_PV_Utility_Opt" => "TS_PV_OPT",
+        "RES_PV_Utility_Tracking" => "TS_PV_TRA",
+        "RES_Wind_Onshore_Avg" => "TS_WIND_ONSHORE_AVG",
+        "RES_Wind_Onshore_Inf" => "TS_WIND_ONSHORE_INF",
+        "RES_Wind_Onshore_Opt" => "TS_WIND_ONSHORE_OPT",
+        "RES_Wind_Offshore_Transitional" => "TS_WIND_OFFSHORE",
+        "RES_Wind_Offshore_Deep" => "TS_WIND_OFFSHORE_DEEP",
+        "RES_Wind_Offshore_Shallow" => "TS_WIND_OFFSHORE_SHALLOW",
+        "Heat_Low_Residential" => "TS_HEAT_LOW",
+        "HLR_Heatpump_Aerial" => "TS_HP_AIRSOURCE",
+        "HLR_Heatpump_Ground" => "TS_HP_GROUNDSOURCE",
+        "Mobility_Passenger" => "TS_MOBILITY_PSNG",
+        "RES_Hydro_Small" => "TS_HYDRO_ROR",
+        "Heat_High_Industrial" => "TS_HEAT_HIGH",
+    )
+
+    map_load = 
+    [
+        "Heat_Low_Industrial" => "Heat_High_Industrial",
+        "Mobility_Freight" => "Mobility_Passenger",
+        "Heat_Medium_Industrial" => "Heat_High_Industrial",
+    ]
+
+    # profiles based on medoid
+    seasonal = intersect(collect(keys(keys_mapping)), ["RES_Hydro_Small","Mobility_Passenger","HLR_Heatpump_Ground","Heat_High_Industrial" ])
+
+    #### config ########
+    config = Dict()
+    config["SCTOLERANCE"] = 10.0e-6
+    config["Country_Data_Entries"] = 𝓣 = intersect(collect(keys(keys_mapping)), vcat(Sets.Fuel, Sets.Technology))
+    config["countries"] = 𝓡 = [x for x in  Sets.Region_full if x != "World"]
+    config["Load"] = load = intersect(Sets.Fuel, ["Mobility_Freight", "Heat_Low_Industrial","Heat_High_Industrial", "Mobility_Passenger", "Heat_Medium_Industrial", "Heat_Low_Residential", "Power"])
+    res = setdiff(config["Country_Data_Entries"], load)
+
+
+    ### Iterate over the keys mapping and create DataFrames
+    hourly_data = XLSX.readxlsx(joinpath(Switch.inputdir, Switch.hourly_data_file * ".xlsx"))
+    CountryData = Dict(t => DataFrame(XLSX.gettable(hourly_data[keys_mapping[t]])) for t ∈ 𝓣)
+
+    for t ∈ 𝓣
+        select!(CountryData[t], 𝓡)
+        if t ∈ load
+            for r ∈ 𝓡
+                CountryData[t][:,r]  = CountryData[t][:,r] / 8760
             end
         end
     end
 
-    tmp=Dict()
-    for t ∈ intersect(Country_Data_Entries, ["MOBILITY_PSNG", "HEAT_LOW", "HEAT_HIGH"])
-        tmp[t] = ScaledCountryData[t] ./ combine(ScaledCountryData[t], names(ScaledCountryData[t]) .=> sum, renamecols=false)
-    end
+    # prepare data in vector format
+    data_clustering_org = TSClustering.create_clustering_matrix(technology=𝓣, CountryData=CountryData)
+    data = TSClustering.normalize_data(config=config, CountryData=CountryData)
 
-    for r ∈ Sets.Region_full, (k,v) ∈ Dict("Mobility_Passenger" => "MOBILITY_PSNG", "Mobility_Freight" => "MOBILITY_PSNG", "Heat_Low_Residential" => "HEAT_LOW", "Heat_Low_Industrial"=>"HEAT_HIGH", "Heat_Medium_Industrial"=>"HEAT_HIGH","Heat_High_Industrial"=>"HEAT_HIGH") 
-        if k ∈ sdp_list
-            SpecifiedDemandProfile[r,k,:,Sets.Year[1]] = tmp[v][Timeslice,r]
+    # use pca data if available
+    if length(Switch.pca_path) >= 1
+        println("PCA")
+        data_clustering = TSClustering.create_clustering_matrix(technology=["PCA"], CountryData=Dict("PCA" => DataFrame(XLSX.readtable(Switch.pca_path, 1))))
+    else
+        data_clustering = TSClustering.create_clustering_matrix(technology=𝓣, CountryData=data)
+        # without the daily profile
+        if occursin("02_Medoid_withoutdaily", Switch.resultdir)
+            data_clustering = TSClustering.create_clustering_matrix(technology=setdiff(𝓣, seasonal), CountryData=data)
         end
     end
 
-    for r ∈ Sets.Region_full for f ∈ Sets.Fuel for y ∈ Sets.Year[2:end]
-        SpecifiedDemandProfile[r,f,:,y] = SpecifiedDemandProfile[r,f,:,Sets.Year[1]]
-    end end end
+    a = Dates.now()
+    datapr = (a - starttime)
+    # define distance matrix 
+    D = TSClustering.define_distance(w=Switch.warping_window, data_clustering=data_clustering, fast_dtw=false)
+    b = Dates.now()
+    dtw = (b - a)
+
+    extremes = false 
+    days = [58,204,365]
+    number_extremes = 0
+    ############# CLUSTERING #############
     
-    TimeDepEfficiency = JuMP.Containers.DenseAxisArray(ones(length(Sets.Region_full), length(Sets.Technology), length(Sets.Timeslice), length(Sets.Year)), Sets.Region_full, Sets.Technology, Sets.Timeslice, Sets.Year)
+    if occursin("Kmeans", Switch.resultdir)
+        println("kmeans")
+        R = kmeans(data_clustering, Switch.clusters; maxiter=200, display=:iter)
+        cl = assignments(R) 
+    else
+        result = hclust(D, linkage=:ward)
+        cl = cutree(result, k=Switch.clusters)
+    end
 
-    for y ∈ Sets.Year
-        for t ∈ intersect(Sets.Technology, TagTechnologyToSubsets["Solar"])
-            CapacityFactor[:,t,:,y] .= 0
+    println("TS Length")
+    println(cl)
+
+    c = Dates.now()
+    clustering = (c - b)
+    if extremes
+        for (j,i) in enumerate(days)
+            cl[i] = Switch.clusters + j
         end
-        for t ∈ intersect(Sets.Technology, TagTechnologyToSubsets["Wind"])
-            CapacityFactor[:,t,:,y] .= 0
-        end
-        for r ∈ Sets.Region_full 
-            if length(Timeslice) < 8760
-                if "HLR_Heatpump_Aerial" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] .= 1
-                    TimeDepEfficiency[r,"HLR_Heatpump_Aerial",:,y] = ScaledCountryData["HP_AIRSOURCE"][Timeslice,r]
-                end
-                if "HLR_Heatpump_Ground" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] .= 1
-                    TimeDepEfficiency[r,"HLR_Heatpump_Ground",:,y] = ScaledCountryData["HP_GROUNDSOURCE"][Timeslice,r]
-                end
-
-                for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
-                    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][Timeslice,r]
-                end
-            else
-                if "HLR_Heatpump_Aerial" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] = CountryData["HP_AIRSOURCE"][:,r]
-                end
-                if "HLR_Heatpump_Ground" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] = CountryData["HP_GROUNDSOURCE"][:,r]
-                end
-
-                for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
-                    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][:,r]
-                end
+    end
+    
+    
+    #calculate weights
+    weights = Dict{Int64, Int64}()
+    for i ∈ cl
+        weights[i] = get(weights, i, 0) + 1
+    end
+    
+    # read input data again because of Jump memory issues
+    CountryData = Dict(key => DataFrame(XLSX.gettable(hourly_data[keys_mapping[key]])) for key ∈ 𝓣)
+    for cde ∈ 𝓣
+        select!(CountryData[cde], 𝓡)
+        if cde ∈ load
+            for r ∈ 𝓡
+                CountryData[cde][:,r]  = CountryData[cde][:,r] / 8760
             end
         end
     end
 
+    if Switch.hoffmann
+        println("Hoffmann is selected")
+        sc = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣), Switch.clusters, 24), 𝓡, 𝓣, 1:Switch.clusters, 1:24) 
+        if extremes
+            for d ∈ Switch.clusters-number_extremes:Switch.clusters, k ∈ days
+                for c ∈ 𝓡, t ∈ 𝓣
+                    sc[c,t,d,:] = CountryData[t][(k-1)*24+1:k*24,c]
+                end
+            end
+        end
+        sc1 = TSClustering.calculate_representative_value_distribution(data_org=filter(kv -> kv[1] ∉ seasonal, CountryData), cl=cl, config=config, K=(Switch.clusters)-number_extremes);
+
+        for t ∈ keys(filter(kv -> kv[1] ∉ seasonal, CountryData)), c ∈ 𝓡
+            b = vcat([vec(sc1[c, t, i, :]) for i in 1:(Switch.clusters)]...)
+            #sg = savitzky_golay(b, 3, 1)  
+            for d ∈ 1:(Switch.clusters)-number_extremes
+                #sc[c,t,d,:] = sg.y[(24*(d-1))+1:24*d]
+                sc[c,t,d,:] = sc1[c,t,d,:]
+                for h ∈ 1:24
+                   if sc[c,t,d,h] <0
+                      sc[c,t,d,h] = 0
+                   end
+                end
+            end
+        end
+        ## medoid for seasonal profiles with missing data
+        cluster_dict_org = TSClustering.calculate_medoid(data_org=CountryData,cl=cl,config=config,K=(Switch.clusters-number_extremes), technology=seasonal)
+        sc2 = TSClustering.scaling(data_org=CountryData, scaled_clusters=cluster_dict_org, k=(Switch.clusters-number_extremes), weights=weights, config=config, technology=seasonal);
+        for t ∈ seasonal, c ∈ 𝓡, k ∈ 1:(Switch.clusters-number_extremes)
+            sc[c,t,k,:] = sc2[c,t,k,:]
+            for h ∈ 1:24
+                if sc[c,t,k,h] < 0
+                    sc[c,t,k,h] = 0
+                end
+            end
+        end
+
+    else
+        # calculate the medoids & bring into JumP formata
+        if occursin("Centroid", Switch.resultdir)
+            println("Centroid")
+            cluster_dict_org = TSClustering.calculate_centroid(data_org=CountryData,cl=cl,config=config,K=Switch.clusters, technology=𝓣)
+        else
+            cluster_dict_org = TSClustering.calculate_medoid(data_org=CountryData,cl=cl,config=config,K=Switch.clusters, technology=𝓣)
+        end
+        sc = TSClustering.scaling(data_org=CountryData, scaled_clusters=cluster_dict_org, k=Switch.clusters, weights=weights, config=config, technology=𝓣);
+    end
+    d = Dates.now()
+    repres = (d - c)
+
+    CapacityFactor = JuMP.Containers.DenseAxisArray(ones(length(𝓡), length(Sets.Technology), length(Sets.Timeslice), length(Sets.Year)), 𝓡, Sets.Technology, Sets.Timeslice, Sets.Year)
+    SpecifiedDemandProfile = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(Sets.Fuel), length(Sets.Timeslice), length(Sets.Year)), 𝓡, Sets.Fuel, Sets.Timeslice, Sets.Year)
+    TimeDepEfficiency = JuMP.Containers.DenseAxisArray(ones(length(𝓡), length(Sets.Technology), length(Sets.Timeslice), length(Sets.Year)), 𝓡, Sets.Technology, Sets.Timeslice, Sets.Year)
+
+    for y ∈ Sets.Year, r ∈ 𝓡
+        for t ∈ res
+            if t ∈ ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"]
+                TimeDepEfficiency[r,t,:,y] =  vec(reshape(sc[r, t,:,:]', 1, :))
+                CapacityFactor[r,t,:,y] .=  1
+            else
+                CapacityFactor[r,t,:,y] = vec(reshape(sc[r, t,:,:]', 1, :))
+            end
+        end
+        for t ∈ intersect(load,  keys(keys_mapping))
+            SpecifiedDemandProfile[r,t,:,y] = vec(reshape(sc[r, t,:,:]', 1, :))
+            for c ∈ 1:Switch.clusters
+                tmp_sum = 0
+                for i ∈ 1:24
+                    tmp_sum += SpecifiedDemandProfile[r,t,(c-1)*24+i,y]
+                end
+                for i ∈ 1:24
+                    SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = (SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] / tmp_sum)*(weights[c]/365)
+                end 
+            end 
+            # tmp_sum = sum(SpecifiedDemandProfile[r,t,:,y])
+            # for c ∈ 1:Switch.clusters
+            #     for i ∈ 1:24
+            #         SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] / tmp_sum
+            #     end
+            # end
+        end
+
+        
+        # include profiles based on another profile
+        for (k,v) ∈ map_load
+            SpecifiedDemandProfile[r,k,:,y] = SpecifiedDemandProfile[r,v,:,y]
+        end
+    end
+
+
+    # assign the weights
+    weights_yrl = vcat([fill(weights[key] / 8760, 24) for key in 1:Switch.clusters]...)
+    YearSplit = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Timeslice), length(Sets.Year)), Sets.Timeslice, Sets.Year)
+    YearSplit[:,:] = repeat(weights_yrl, length(Sets.Year))
+
+    # define empty array for peaking demand
+    x_peakingDemand = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full), length(Sets.Sector)),Sets.Region_full, Sets.Sector)
 
     if Switch.write_reduced_timeserie == 1
-        df_SpecifiedDemandProfile = convert_jump_container_to_df(SpecifiedDemandProfile[:,sdp_list,:,:];dim_names=[:Region,:Fuel,:Timeslice,:Year])
-        df_CapacityFactor = convert_jump_container_to_df(CapacityFactor[:,capf_list,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
-        df_x_peakingDemand = convert_jump_container_to_df(x_peakingDemand;dim_names=[:Region,:Sector])
+        df_SpecifiedDemandProfile = convert_jump_container_to_df(SpecifiedDemandProfile[:,load,:,:];dim_names=[:Region,:Fuel,:Timeslice,:Year])
+        df_CapacityFactor = convert_jump_container_to_df(CapacityFactor[:,res,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
         df_YearSplit = convert_jump_container_to_df(YearSplit;dim_names=[:Timeslice,:Year])
+        df_TimeDepEfficiency = convert_jump_container_to_df(TimeDepEfficiency[:,["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"], :,:])
+
         
-        filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(Switch.elmod_nthhour).xlsx"
+        filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.clusters)_$(replace(split(Switch.resultdir, "/")[end], ".xlsx" => "")).xlsx"
         if isfile(filename)
             rm(filename)
         end
         XLSX.writetable(filename,
-        "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, "CapacityFactor" => df_CapacityFactor, "x_peakingDemand" => df_x_peakingDemand,
+        "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, 
+        "CapacityFactor" => df_CapacityFactor, 
+        "TimeDepEfficiency" => df_TimeDepEfficiency,
         "YearSplit" => df_YearSplit)
     end
 
-    return SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, TimeDepEfficiency
+    ## save the computational burden
+    total=datapr+dtw+clustering+repres
+    open(joinpath("/cluster/home/danare/git/dana/results/spatial/time.txt"), "a") do file
+        write(file, "$(Switch.hoffmann);$(Switch.clusters); 0; $(Switch.warping_window); $datapr; $dtw; $clustering; $repres; $total\n")
+    end
+
+    return SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, cl, weights, TimeDepEfficiency
 end

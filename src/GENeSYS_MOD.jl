@@ -30,7 +30,12 @@ using Dates
 using JuMP
 using XLSX
 using CSV
+using SavitzkyGolay
 using Statistics
+include("/cluster/home/danare/git/Clustering/TSClustering.jl")
+using .TSClustering
+using Clustering
+using Distances
 
 include("datastructures.jl")
 include("utils.jl")

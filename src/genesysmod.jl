@@ -35,7 +35,8 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_peaking_with_storages = 0, switch_peaking_with_trade = 0,switch_peaking_minrun = 0,
     switch_employment_calculation = 0, switch_endogenous_employment = 0,
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8, 
-    elmod_dunkelflaute = 0, switch_raw_results = 0, switch_processed_results = 0, write_reduced_timeserie = 1, switch_LCOE_calc=0, switch_reserve=0)
+    elmod_dunkelflaute = 0, switch_raw_results = 0, switch_processed_results = 0, write_reduced_timeserie = 1,
+    switch_iis = 1, switch_base_year_bounds_debugging = 0, switch_LCOE_calc=0, clusters=0, warping_window=0, hoffmann=false, switch_reserve=0, switch_emission_penalty=1, pca_path="")
 
     if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
         @warn "Both elmod_nthhour and elmod_daystep/elmod_hourstep are defined.
@@ -101,7 +102,12 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_processed_results,
     write_reduced_timeserie,
     switch_LCOE_calc,
-    switch_reserve)
+    clusters,
+    warping_window,
+    hoffmann,
+    switch_reserve,
+    switch_emission_penalty,
+    pca_path)
 
     starttime= Dates.now()
     model= JuMP.Model()
@@ -185,7 +191,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
             println("Termination status:", termination_status(model), ". Computing IIS")
             compute_conflict!(model)
             println("Saving IIS to file")
-            print_iis(model)
+            GENeSYS_MOD.print_iis(model)
         else
             error("Model infeasible. Turn on 'switch_iis' to compute and write the iis file")
         end

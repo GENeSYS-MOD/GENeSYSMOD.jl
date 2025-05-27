@@ -54,16 +54,32 @@ function genesysmod_dataload(Switch)
         append!(Technology, [k for (k,v) ∈ output_activity_dict if v ∈ Fuel])
         push!(Sector,"Infeasibility")
     end
+    Timeslice_full = 1:8760
     
-    Timeslice = [x for x in Timeslice_full if (x-Switch.elmod_starthour)%(Switch.elmod_nthhour) == 0]
+    if Switch.clusters == 0 
+        n_th = floor(Int, (8760/(Switch.elmod_nthhour*24)))
+        lenth_must = Switch.elmod_nthhour * 24
+        Timeslice = [x for x in 1:8760 if (x-Switch.elmod_starthour)%(n_th) == 0][1:lenth_must]
+    else
+        Timeslice = 1:Switch.clusters*24
+    end
+
+    if Switch.switch_dispatch == 1
+        Year = [2050]
+        Timeslice = 1:8760
+    end
+
+    tag_data = XLSX.readxlsx(joinpath(inputdir, "Tag_Subsets.xlsx"))
+    TagTechnologyToSubsets = read_subsets(tag_data, "Par_TagTechnologyToSubsets")
+    TagFuelToSubsets = read_subsets(tag_data, "Par_TagFuelToSubsets")
+
+    if Switch.switch_ccs == 0
+        filter!(e->e∉intersect(Technology, TagTechnologyToSubsets["CCS"]),Technology)
+    end
 
     Sets=GENeSYS_MOD.Sets(Timeslice_full,Emission,Technology,Fuel,
         Year,Timeslice,Mode_of_operation,Region_full,Storage,ModalType,Sector)
 
-    tag_data = XLSX.readxlsx(joinpath(inputdir, "Tag_Subsets.xlsx"))
-    DataFrame(XLSX.gettable(tag_data["Par_TagTechnologyToSubsets"];first_row=1))
-    TagTechnologyToSubsets = read_subsets(tag_data, "Par_TagTechnologyToSubsets")
-    TagFuelToSubsets = read_subsets(tag_data, "Par_TagFuelToSubsets")
 
     if Switch.switch_infeasibility_tech == 1
         TagTechnologyToSubsets["DummyTechnology"] = intersect(Sets.Technology, ["Infeasibility_Power", "Infeasibility_HLI", "Infeasibility_HMI",
@@ -113,8 +129,7 @@ function genesysmod_dataload(Switch)
     SpecifiedAnnualDemand = create_daa(in_data, "Par_SpecifiedAnnualDemand",dbr, 𝓡, 𝓕, 𝓨)
 
     AnnualEmissionLimit = create_daa(in_data,"Par_AnnualEmissionLimit",dbr, 𝓔, 𝓨)
-    AnnualExogenousEmission = create_daa(in_data,"Par_AnnualExogenousEmission",dbr, 𝓡, 𝓔, 𝓨)             
-    AnnualSectoralEmissionLimit = create_daa(in_data, "Par_AnnualSectoralEmissionLimit",dbr, 𝓔, 𝓢𝓮, 𝓨)
+    #AnnualExogenousEmission = create_daa(in_data,"Par_AnnualExogenousEmission",dbr, 𝓡, 𝓔, 𝓨)             
     EmissionContentPerFuel = create_daa(in_data, "Par_EmissionContentPerFuel",dbr, 𝓕, 𝓔)
     RegionalAnnualEmissionLimit = create_daa(in_data,"Par_RegionalAnnualEmissionLimit",dbr, 𝓡, 𝓔, 𝓨)
 
@@ -127,9 +142,9 @@ function genesysmod_dataload(Switch)
     ResidualCapacity = create_daa(in_data, "Par_ResidualCapacity",dbr, 𝓡, 𝓣, 𝓨)
 
     TotalAnnualMaxCapacity = create_daa(in_data, "Par_TotalAnnualMaxCapacity",dbr, 𝓡, 𝓣, 𝓨)
-    TotalAnnualMinCapacity = create_daa(in_data, "Par_TotalAnnualMinCapacity",dbr, 𝓡, 𝓣, 𝓨)
+    #TotalAnnualMinCapacity = create_daa(in_data, "Par_TotalAnnualMinCapacity",dbr, 𝓡, 𝓣, 𝓨)
     TotalTechnologyAnnualActivityUpperLimit = create_daa(in_data, "Par_TotalAnnualMaxActivity",dbr, 𝓡, 𝓣, 𝓨)
-    TotalTechnologyAnnualActivityLowerLimit = create_daa(in_data, "Par_TotalAnnualMinActivity",dbr, 𝓡, 𝓣, 𝓨)
+   # TotalTechnologyAnnualActivityLowerLimit = create_daa(in_data, "Par_TotalAnnualMinActivity",dbr, 𝓡, 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = create_daa_init(in_data, "Par_ModelPeriodActivityMaxLimit",dbr, 999999, 𝓡, 𝓣)
 
     OperationalLife = create_daa(in_data, "Par_OperationalLife",dbr, 𝓣)
@@ -148,35 +163,31 @@ function genesysmod_dataload(Switch)
     TagTechnologyToModalType = create_daa(in_data, "Par_TagTechnologyToModalType",dbr, 𝓣, 𝓜, 𝓜𝓽)
     TagTechnologyToSector = create_daa(in_data, "Par_TagTechnologyToSector",dbr, 𝓣, 𝓢𝓮)
     
-    StorageE2PRatio = nothing
-    #StorageE2PRatio = create_daa(in_data, "Par_StorageE2PRatio",dbr, 𝓢)
+    StorageE2PRatio = create_daa(in_data, "Par_StorageE2PRatio",dbr, 𝓢)
 
 
     RateOfDemand = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓛), length(𝓕), length(𝓡)), 𝓨, 𝓛, 𝓕, 𝓡)
     Demand = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓛), length(𝓕), length(𝓡)), 𝓨, 𝓛, 𝓕, 𝓡)
     TagDispatchableTechnology = JuMP.Containers.DenseAxisArray(ones(length(𝓣)), 𝓣)
     StorageMaxCapacity = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓢), length(𝓨)), 𝓡, 𝓢, 𝓨)
-    TotalAnnualMaxCapacityInvestment = JuMP.Containers.DenseAxisArray(fill(999999, length(𝓡), length(𝓣), length(𝓨)), 𝓡, 𝓣, 𝓨)
-    TotalAnnualMinCapacityInvestment = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣), length(𝓨)), 𝓡, 𝓣, 𝓨)
+    #TotalAnnualMaxCapacityInvestment = JuMP.Containers.DenseAxisArray(fill(999999, length(𝓡), length(𝓣), length(𝓨)), 𝓡, 𝓣, 𝓨)
+    #TotalAnnualMinCapacityInvestment = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣), length(𝓨)), 𝓡, 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityLowerLimit = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣)), 𝓡, 𝓣)
 
     RETagTechnology = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣), length(𝓨)), 𝓡, 𝓣, 𝓨)
     RETagFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓕, 𝓨)
     REMinProductionTarget = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓕, 𝓨)
 
-    ModelPeriodExogenousEmission = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓔)), 𝓡, 𝓔)
+    #ModelPeriodExogenousEmission = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓔)), 𝓡, 𝓔)
     ModelPeriodEmissionLimit = JuMP.Containers.DenseAxisArray(fill(999999, length(𝓔)), 𝓔)
     RegionalModelPeriodEmissionLimit = JuMP.Containers.DenseAxisArray(fill(999999, length(𝓔), length(𝓡)), 𝓔, 𝓡)
 
-    CurtailmentCostFactor = JuMP.Containers.DenseAxisArray(fill(0.1,length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓕, 𝓨)
+    CurtailmentCostFactor = JuMP.Containers.DenseAxisArray(fill(0,length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓕, 𝓨)
     TradeRoute = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓡, 𝓕 , 𝓨)
     TradeLossFactor = JuMP.Containers.DenseAxisArray(zeros(length(𝓕), length(𝓨)), 𝓕, 𝓨)
     TradeRouteInstalledCapacity = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓡, 𝓕 , 𝓨)
     TradeLossBetweenRegions = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓡, 𝓕 , 𝓨)
     TradeCapacity = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓡, 𝓕 , 𝓨)
-
-    CommissionedTradeCapacity = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓡), length(𝓕), length(𝓨)), 𝓡, 𝓡, 𝓕 , 𝓨)
-
     SelfSufficiency = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕 , 𝓡)
 
     # delete world region from region set
@@ -193,7 +204,6 @@ function genesysmod_dataload(Switch)
     #
 
     for y ∈ 𝓨
-        TradeLossFactor["Power",y] = 0.00003
         for r ∈ 𝓡 for rr ∈ 𝓡
             for f ∈ 𝓕
                 TradeRoute[r,rr,f,y] = Readin_TradeRoute2015[r,rr,f]
@@ -203,9 +213,9 @@ function genesysmod_dataload(Switch)
         end end
     end
 
-    for r ∈ 𝓡 for rr ∈ 𝓡 for y ∈ 𝓨[2:end]
-        GrowthRateTradeCapacity[r,rr,"Power",y] = GrowthRateTradeCapacity[r,rr,"Power",𝓨[1]]
-    end end end
+    for r ∈ 𝓡, rr ∈ 𝓡, y ∈ 𝓨[2:end], f ∈ ["H2", "Power"]
+        GrowthRateTradeCapacity[r,rr,f,y] = GrowthRateTradeCapacity[r,rr,f,𝓨[1]]
+    end
 
 
     #
@@ -269,10 +279,18 @@ function genesysmod_dataload(Switch)
     # ####### Load from hourly Data #############
     #
     
-    SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, TimeDepEfficiency = GENeSYS_MOD.timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand)
+    if Switch.clusters == 0
+        Mapping = nothing
+        SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, TimeDepEfficiency = GENeSYS_MOD.timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand)
+    else
+        SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, Mapping, weights, TimeDepEfficiency = GENeSYS_MOD.hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnnualDemand)
+    end
 
     for y ∈ 𝓨 for l ∈ 𝓛 for r ∈ 𝓡
         for f ∈ 𝓕
+            # if Switch.switch_dispatch == 0
+            #     SpecifiedAnnualDemand[r,f,2018] = 0
+            # end
             RateOfDemand[y,l,f,r] = SpecifiedAnnualDemand[r,f,y]*SpecifiedDemandProfile[r,f,l,y] / YearSplit[l,y]
             Demand[y,l,f,r] = RateOfDemand[y,l,f,r] * YearSplit[l,y]
             if Demand[y,l,f,r] < 0.000001
@@ -286,7 +304,8 @@ function genesysmod_dataload(Switch)
         end
     end end end
 
-        #
+    
+    
     # ####### Dummy-Technologies [enable for test purposes, if model runs infeasible] #############
     #
 
@@ -302,8 +321,8 @@ function genesysmod_dataload(Switch)
 
         CapacityToActivityUnit[TagTechnologyToSubsets["DummyTechnology"]] .= 31.56
         TotalAnnualMaxCapacity[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 999999
-        FixedCost[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 999
-        CapitalCost[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 999
+        FixedCost[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 999999
+        CapitalCost[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 999999
         VariableCost[:,TagTechnologyToSubsets["DummyTechnology"],:,:] .= 999
         AvailabilityFactor[:,TagTechnologyToSubsets["DummyTechnology"],:] .= 1
         CapacityFactor[:,TagTechnologyToSubsets["DummyTechnology"],:,:] .= 1 
@@ -318,24 +337,24 @@ function genesysmod_dataload(Switch)
     RegionalBaseYearProduction,TimeDepEfficiency,RegionalCCSLimit,CapitalCost,VariableCost,FixedCost,
     StorageLevelStart,MinStorageCharge,
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
-    TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,TotalAnnualMinCapacity,
-    TagTechnologyToSector,AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
-    TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
-    TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
+    TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,
+    TagTechnologyToSector,
+    TotalTechnologyAnnualActivityUpperLimit,
+    TotalTechnologyModelPeriodActivityUpperLimit,
     TotalTechnologyModelPeriodActivityLowerLimit,ReserveMarginTagTechnology,
     ReserveMarginTagFuel,ReserveMargin,RETagTechnology,RETagFuel,REMinProductionTarget,
     EmissionActivityRatio, EmissionContentPerFuel,EmissionsPenalty,EmissionsPenaltyTagTechnology,
-    AnnualExogenousEmission,AnnualEmissionLimit,RegionalAnnualEmissionLimit,
-    ModelPeriodExogenousEmission,ModelPeriodEmissionLimit,RegionalModelPeriodEmissionLimit,
+    AnnualEmissionLimit,RegionalAnnualEmissionLimit,
+    ModelPeriodEmissionLimit,RegionalModelPeriodEmissionLimit,
     CurtailmentCostFactor,TradeRoute,TradeCosts,
-    TradeLossFactor,TradeRouteInstalledCapacity,TradeLossBetweenRegions,CommissionedTradeCapacity,
+    TradeLossFactor,TradeRouteInstalledCapacity,TradeLossBetweenRegions,
     TradeCapacity,TradeCapacityGrowthCosts,GrowthRateTradeCapacity,SelfSufficiency,
     RampingUpFactor,RampingDownFactor,ProductionChangeCost,MinActiveProductionPerTimeslice,
     ModalSplitByFuelAndModalType,TagTechnologyToModalType,EFactorConstruction, EFactorOM,
     EFactorManufacturing, EFactorFuelSupply, EFactorCoalJobs,CoalSupply, CoalDigging,
     RegionalAdjustmentFactor, LocalManufacturingFactor, DeclineRate,x_peakingDemand,
     TagDemandFuelToSector,TagElectricTechnology, TagTechnologyToSubsets, TagFuelToSubsets,
-    StorageE2PRatio)
+    StorageE2PRatio, Mapping)
 
     return Sets, Params, Emp_Sets
 end

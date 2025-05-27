@@ -227,16 +227,11 @@ struct Parameters <: InputClass
     StorageMaxCapacity ::JuMP.Containers.DenseAxisArray
 
     TotalAnnualMaxCapacity ::JuMP.Containers.DenseAxisArray
-    TotalAnnualMinCapacity ::JuMP.Containers.DenseAxisArray
+    #TotalAnnualMinCapacity ::JuMP.Containers.DenseAxisArray
 
     TagTechnologyToSector ::JuMP.Containers.DenseAxisArray
-    AnnualSectoralEmissionLimit ::JuMP.Containers.DenseAxisArray
-
-    TotalAnnualMaxCapacityInvestment ::JuMP.Containers.DenseAxisArray
-    TotalAnnualMinCapacityInvestment ::JuMP.Containers.DenseAxisArray
 
     TotalTechnologyAnnualActivityUpperLimit ::JuMP.Containers.DenseAxisArray
-    TotalTechnologyAnnualActivityLowerLimit ::JuMP.Containers.DenseAxisArray
     TotalTechnologyModelPeriodActivityUpperLimit ::JuMP.Containers.DenseAxisArray
     TotalTechnologyModelPeriodActivityLowerLimit ::JuMP.Containers.DenseAxisArray
 
@@ -252,10 +247,10 @@ struct Parameters <: InputClass
     EmissionContentPerFuel ::JuMP.Containers.DenseAxisArray
     EmissionsPenalty ::JuMP.Containers.DenseAxisArray
     EmissionsPenaltyTagTechnology ::JuMP.Containers.DenseAxisArray
-    AnnualExogenousEmission ::JuMP.Containers.DenseAxisArray
+    #AnnualExogenousEmission ::JuMP.Containers.DenseAxisArray
     AnnualEmissionLimit ::JuMP.Containers.DenseAxisArray
     RegionalAnnualEmissionLimit ::JuMP.Containers.DenseAxisArray
-    ModelPeriodExogenousEmission ::JuMP.Containers.DenseAxisArray
+    #ModelPeriodExogenousEmission ::JuMP.Containers.DenseAxisArray
     ModelPeriodEmissionLimit ::JuMP.Containers.DenseAxisArray
     RegionalModelPeriodEmissionLimit ::JuMP.Containers.DenseAxisArray
     CurtailmentCostFactor ::JuMP.Containers.DenseAxisArray
@@ -267,7 +262,6 @@ struct Parameters <: InputClass
     TradeLossBetweenRegions ::JuMP.Containers.DenseAxisArray
 
 
-    CommissionedTradeCapacity ::JuMP.Containers.DenseAxisArray
     TradeCapacity ::JuMP.Containers.DenseAxisArray
     TradeCapacityGrowthCosts ::JuMP.Containers.DenseAxisArray
     GrowthRateTradeCapacity ::JuMP.Containers.DenseAxisArray
@@ -300,10 +294,11 @@ struct Parameters <: InputClass
     TagTechnologyToSubsets ::Dict{String,Array}
     TagFuelToSubsets ::Dict{String,Array}
     StorageE2PRatio ::Union{Nothing,JuMP.Containers.DenseAxisArray}
+    Mapping 
 end
 
 struct Variables
-    NewCapacity ::JuMP.Containers.DenseAxisArray
+    NewCapacity 
     AccumulatedNewCapacity ::JuMP.Containers.DenseAxisArray
     TotalCapacityAnnual ::JuMP.Containers.DenseAxisArray
 
@@ -318,7 +313,7 @@ struct Variables
     CurtailedEnergy ::JuMP.Containers.DenseAxisArray
     DispatchDummy ::JuMP.Containers.DenseAxisArray
 
-    CapitalInvestment ::JuMP.Containers.DenseAxisArray
+    CapitalInvestment 
     DiscountedCapitalInvestment ::JuMP.Containers.DenseAxisArray
     SalvageValue ::JuMP.Containers.DenseAxisArray
     DiscountedSalvageValue ::JuMP.Containers.DenseAxisArray
@@ -332,45 +327,40 @@ struct Variables
     AnnualCurtailmentCost ::JuMP.Containers.DenseAxisArray
     DiscountedAnnualCurtailmentCost ::JuMP.Containers.DenseAxisArray
 
-    StorageLevelYearStart ::JuMP.Containers.DenseAxisArray
-    StorageLevelYearFinish ::JuMP.Containers.DenseAxisArray
+    StorageLevelYearStart 
+    #StorageLevelYearFinish ::JuMP.Containers.DenseAxisArray
     StorageLevelTSStart ::JuMP.Containers.DenseAxisArray
     AccumulatedNewStorageCapacity ::JuMP.Containers.DenseAxisArray
     NewStorageCapacity ::JuMP.Containers.DenseAxisArray
-    CapitalInvestmentStorage ::JuMP.Containers.DenseAxisArray
-    DiscountedCapitalInvestmentStorage ::JuMP.Containers.DenseAxisArray
     SalvageValueStorage ::JuMP.Containers.DenseAxisArray
     DiscountedSalvageValueStorage ::JuMP.Containers.DenseAxisArray
     TotalDiscountedStorageCost ::JuMP.Containers.DenseAxisArray
+    SoC_Inter 
+    SoC_Intra 
 
     TotalActivityInReserveMargin ::Union{Nothing,JuMP.Containers.DenseAxisArray}
     DemandNeedingReserveMargin ::Union{Nothing,JuMP.Containers.DenseAxisArray}
 
-    TotalREProductionAnnual ::JuMP.Containers.DenseAxisArray
-    RETotalDemandOfTargetFuelAnnual ::JuMP.Containers.DenseAxisArray
+    TotalREProductionAnnual
     TotalTechnologyModelPeriodActivity ::JuMP.Containers.DenseAxisArray
-    RETargetMin ::JuMP.Containers.DenseAxisArray
 
     AnnualTechnologyEmissionByMode ::JuMP.Containers.DenseAxisArray
     AnnualTechnologyEmission ::JuMP.Containers.DenseAxisArray
     AnnualTechnologyEmissionPenaltyByEmission ::JuMP.Containers.DenseAxisArray
-    AnnualTechnologyEmissionsPenalty ::JuMP.Containers.DenseAxisArray
+    #AnnualTechnologyEmissionsPenalty ::JuMP.Containers.DenseAxisArray
     DiscountedTechnologyEmissionsPenalty ::JuMP.Containers.DenseAxisArray
-    AnnualEmissions ::JuMP.Containers.DenseAxisArray
-    ModelPeriodEmissions ::JuMP.Containers.DenseAxisArray
-    WeightedAnnualEmissions ::JuMP.Containers.DenseAxisArray
-
-    AnnualSectoralEmissions ::JuMP.Containers.DenseAxisArray
+    AnnualEmissions
+    ModelPeriodEmissions 
+    WeightedAnnualEmissions 
 
     Import ::JuMP.Containers.DenseAxisArray
     Export ::JuMP.Containers.DenseAxisArray
-    NewTradeCapacity ::JuMP.Containers.DenseAxisArray
+    NewTradeCapacity 
     TotalTradeCapacity ::JuMP.Containers.DenseAxisArray
-    NewTradeCapacityCosts ::JuMP.Containers.DenseAxisArray
-    DiscountedNewTradeCapacityCosts ::JuMP.Containers.DenseAxisArray
+    NewTradeCapacityCosts
+    DiscountedNewTradeCapacityCosts 
     NetTrade ::JuMP.Containers.DenseAxisArray
     NetTradeAnnual ::JuMP.Containers.DenseAxisArray
-    TotalTradeCosts ::JuMP.Containers.DenseAxisArray
     AnnualTotalTradeCosts ::JuMP.Containers.DenseAxisArray
     DiscountedAnnualTotalTradeCosts ::JuMP.Containers.DenseAxisArray
 
@@ -381,17 +371,19 @@ struct Variables
 
     RateOfTotalActivity ::Union{Nothing,JuMP.Containers.DenseAxisArray}
 
-    BaseYearSlack ::JuMP.Containers.DenseAxisArray
-    BaseYearBounds_TooLow ::JuMP.Containers.DenseAxisArray
-    BaseYearBounds_TooHigh ::JuMP.Containers.DenseAxisArray
+    BaseYearSlack 
+    BaseYearBounds_TooLow 
+    BaseYearBounds_TooHigh
 
-    DiscountedSalvageValueTransmission ::JuMP.Containers.DenseAxisArray
+    DiscountedSalvageValueTransmission 
 
     PeakingDemand ::Union{Nothing,JuMP.Containers.DenseAxisArray}
     PeakingCapacity ::Union{Nothing,JuMP.Containers.DenseAxisArray}
 
     AnnualProductionChangeCost ::Union{Nothing,JuMP.Containers.DenseAxisArray}
     DiscountedAnnualProductionChangeCost ::Union{Nothing,JuMP.Containers.DenseAxisArray}
+    SoC_Intra_min
+    SoC_Intra_max
 end
 
 """
@@ -713,7 +705,12 @@ struct Switch <: InputClass
     switch_processed_results ::Int8
     write_reduced_timeserie ::Int8
     switch_LCOE_calc ::Int8
+    clusters ::Int16
+    warping_window ::Int16
+    hoffmann :: Bool
     switch_reserve ::Int16
+    switch_emission_penalty ::Int16
+    pca_path
 end
 
 """
@@ -737,7 +734,8 @@ struct Variable_Parameters <: InputClass
     ProductionAnnual ::JuMP.Containers.DenseAxisArray
     UseAnnual ::JuMP.Containers.DenseAxisArray
     CurtailedEnergy ::JuMP.Containers.DenseAxisArray
-    ModelPeriodCostByRegion ::JuMP.Containers.DenseAxisArray 
+    ModelPeriodCostByRegion ::JuMP.Containers.DenseAxisArray
+    TotalStorageCapacity ::JuMP.Containers.DenseAxisArray
 end
 
 """

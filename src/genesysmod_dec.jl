@@ -78,7 +78,12 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     
     ############### Costing Variables #############
 
-    CapitalInvestment = @variable(model, CapitalInvestment[𝓨,𝓣,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
+    if Switch.switch_dispatch == 0
+        CapitalInvestment = @variable(model, CapitalInvestment[𝓨,𝓣,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
+    else
+        CapitalInvestment = nothing
+    end
+
     DiscountedCapitalInvestment = @variable(model, DiscountedCapitalInvestment[𝓨,𝓣,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
     SalvageValue = @variable(model, SalvageValue[𝓨,𝓣,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
     DiscountedSalvageValue = @variable(model, DiscountedSalvageValue[𝓨,𝓣,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
@@ -97,13 +102,23 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
 
     ############### Storage Variables #############
 
-    StorageLevelYearStart = @variable(model, StorageLevelYearStart[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
-    StorageLevelYearFinish = @variable(model, StorageLevelYearFinish[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
-    StorageLevelTSStart = @variable(model, StorageLevelTSStart[𝓢,𝓨,𝓛,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
+    if Switch.clusters == 0
+        StorageLevelTSStart = @variable(model, StorageLevelTSStart[𝓢,𝓨,𝓛,𝓡]>= 0, container=JuMP.Containers.DenseAxisArray)
+        StorageLevelYearStart = @variable(model, StorageLevelYearStart[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray)
+        SoC_Inter = nothing
+        SoC_Intra = nothing
+        SoC_Intra_min = nothing
+        SoC_Intra_max = nothing
+    else
+        StorageLevelTSStart = @variable(model, StorageLevelTSStart[intersect(𝓢, Params.TagTechnologyToSubsets["ShortTermStorage"]),𝓨,1:floor(Int, length(𝓛)/24), 1:25,𝓡]>= 0, container=JuMP.Containers.DenseAxisArray)
+        StorageLevelYearStart = nothing
+        SoC_Intra_min = @variable(model, SoC_Intra_min[intersect(𝓢, Params.TagTechnologyToSubsets["LongTermStorage"]),𝓨,1:floor(Int, length(𝓛)/24), 𝓡], container=JuMP.Containers.DenseAxisArray)
+        SoC_Intra_max = @variable(model, SoC_Intra_max[intersect(𝓢, Params.TagTechnologyToSubsets["LongTermStorage"]),𝓨,1:floor(Int, length(𝓛)/24),𝓡], container=JuMP.Containers.DenseAxisArray)
+        SoC_Inter = @variable(model, SoC_Inter[intersect(𝓢, Params.TagTechnologyToSubsets["LongTermStorage"]),𝓨,𝓡,1:366] >= 0, container=JuMP.Containers.DenseAxisArray)     
+        SoC_Intra = @variable(model, SoC_Intra[intersect(𝓢, Params.TagTechnologyToSubsets["LongTermStorage"]),𝓨,1:floor(Int, length(𝓛)/24), 1:25,𝓡], container=JuMP.Containers.DenseAxisArray)
+    end
     AccumulatedNewStorageCapacity = @variable(model, AccumulatedNewStorageCapacity[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
     NewStorageCapacity = @variable(model, NewStorageCapacity[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    CapitalInvestmentStorage = @variable(model, CapitalInvestmentStorage[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    DiscountedCapitalInvestmentStorage = @variable(model, DiscountedCapitalInvestmentStorage[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
     SalvageValueStorage = @variable(model, SalvageValueStorage[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
     DiscountedSalvageValueStorage = @variable(model, DiscountedSalvageValueStorage[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
     TotalDiscountedStorageCost = @variable(model, TotalDiscountedStorageCost[𝓢,𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
@@ -123,11 +138,9 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     
 
     ######## RE Gen Target #############
-
     TotalREProductionAnnual = @variable(model, TotalREProductionAnnual[𝓨,𝓡,𝓕], container=JuMP.Containers.DenseAxisArray) 
     RETotalDemandOfTargetFuelAnnual = @variable(model, RETotalDemandOfTargetFuelAnnual[𝓨,𝓡,𝓕], container=JuMP.Containers.DenseAxisArray) 
     TotalTechnologyModelPeriodActivity = @variable(model, TotalTechnologyModelPeriodActivity[𝓣,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    RETargetMin = @variable(model, RETargetMin[𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
 
     
 
@@ -141,16 +154,25 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     end end end end 
     AnnualTechnologyEmission = @variable(model, AnnualTechnologyEmission[𝓨,𝓣,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray) 
     AnnualTechnologyEmissionPenaltyByEmission = @variable(model, AnnualTechnologyEmissionPenaltyByEmission[𝓨,𝓣,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    AnnualTechnologyEmissionsPenalty = @variable(model, AnnualTechnologyEmissionsPenalty[𝓨,𝓣,𝓡], container=JuMP.Containers.DenseAxisArray) 
+    #AnnualTechnologyEmissionsPenalty = @variable(model, AnnualTechnologyEmissionsPenalty[𝓨,𝓣,𝓡], container=JuMP.Containers.DenseAxisArray) 
     DiscountedTechnologyEmissionsPenalty = @variable(model, DiscountedTechnologyEmissionsPenalty[𝓨,𝓣,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    AnnualEmissions = @variable(model, AnnualEmissions[𝓨,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    ModelPeriodEmissions = @variable(model, ModelPeriodEmissions[𝓔,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    WeightedAnnualEmissions = @variable(model, WeightedAnnualEmissions[𝓨,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray)
-
+    if Switch.switch_emission_penalty == 0
+        AnnualEmissions = @variable(model, AnnualEmissions[𝓨,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray) 
+        ModelPeriodEmissions = @variable(model, ModelPeriodEmissions[𝓔,𝓡], container=JuMP.Containers.DenseAxisArray)
+        if Switch.switch_weighted_emissions == 1 
+            WeightedAnnualEmissions = @variable(model, WeightedAnnualEmissions[𝓨,𝓔,𝓡], container=JuMP.Containers.DenseAxisArray)
+        else
+            WeightedAnnualEmissions = nothing
+        end
+    else
+        AnnualEmissions = nothing
+        ModelPeriodEmissions = nothing
+        WeightedAnnualEmissions = nothing
+    end
     
     ######### SectoralEmissions #############
 
-    AnnualSectoralEmissions = @variable(model, AnnualSectoralEmissions[𝓨,𝓔,𝓢𝓮,𝓡], container=JuMP.Containers.DenseAxisArray) 
+    #AnnualSectoralEmissions = @variable(model, AnnualSectoralEmissions[𝓨,𝓔,𝓢𝓮,𝓡], container=JuMP.Containers.DenseAxisArray) 
 
     
 
@@ -159,14 +181,20 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     Import = @variable(model, Import[𝓨,𝓛,𝓕,𝓡,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
     Export = @variable(model, Export[𝓨,𝓛,𝓕,𝓡,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
 
-    NewTradeCapacity = @variable(model, NewTradeCapacity[𝓨, 𝓕, 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    TotalTradeCapacity = @variable(model, TotalTradeCapacity[𝓨, 𝓕, 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    NewTradeCapacityCosts = @variable(model, NewTradeCapacityCosts[𝓨, 𝓕, 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    DiscountedNewTradeCapacityCosts = @variable(model, DiscountedNewTradeCapacityCosts[𝓨, 𝓕, 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+    TotalTradeCapacity = @variable(model, TotalTradeCapacity[𝓨, Params.TagFuelToSubsets["TradeInv"], 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+    if Switch.switch_dispatch == 0
+        NewTradeCapacity = @variable(model, NewTradeCapacity[𝓨, Params.TagFuelToSubsets["TradeInv"], 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+        NewTradeCapacityCosts = @variable(model, NewTradeCapacityCosts[𝓨, Params.TagFuelToSubsets["TradeInv"], 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+        DiscountedNewTradeCapacityCosts = @variable(model, DiscountedNewTradeCapacityCosts[𝓨, Params.TagFuelToSubsets["TradeInv"], 𝓡, 𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+    
+    else
+        NewTradeCapacity = nothing
+        NewTradeCapacityCosts = nothing
+        DiscountedNewTradeCapacityCosts = nothing
+    end
 
     NetTrade = @variable(model, NetTrade[𝓨,𝓛,𝓕,𝓡], container=JuMP.Containers.DenseAxisArray) 
     NetTradeAnnual = @variable(model, NetTradeAnnual[𝓨,𝓕,𝓡], container=JuMP.Containers.DenseAxisArray) 
-    TotalTradeCosts = @variable(model, TotalTradeCosts[𝓨,𝓛,𝓡], container=JuMP.Containers.DenseAxisArray) 
     AnnualTotalTradeCosts = @variable(model, AnnualTotalTradeCosts[𝓨,𝓡], container=JuMP.Containers.DenseAxisArray) 
     DiscountedAnnualTotalTradeCosts = @variable(model, DiscountedAnnualTotalTradeCosts[𝓨,𝓡], container=JuMP.Containers.DenseAxisArray) 
 
@@ -214,21 +242,33 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
         RateOfTotalActivity=nothing
     end
 
-    BaseYearSlack= @variable(model, BaseYearSlack[𝓕], container=JuMP.Containers.DenseAxisArray) 
-    BaseYearBounds_TooLow = def_daa(𝓡,𝓣,𝓕,𝓨)
-    BaseYearBounds_TooHigh = def_daa(𝓨,𝓡,𝓣,𝓕)
-    for y ∈ 𝓨 for r ∈ 𝓡 for t ∈ 𝓣
-        for f ∈ Maps.Tech_Fuel[t]
-            BaseYearBounds_TooLow[r,t,f,y] = @variable(model, lower_bound = 0, base_name= "BaseYearBounds_TooLow[$r,$t,$f,$y]")
-            BaseYearBounds_TooHigh[y,r,t,f] = @variable(model, lower_bound = 0, base_name= "BaseYearBounds_TooHigh[$y,$r,$t,$f]")
-            if Switch.switch_base_year_bounds_debugging == 0
-                JuMP.fix(BaseYearBounds_TooLow[r,t,f,y], 0;force=true)
-                JuMP.fix(BaseYearBounds_TooHigh[y,r,t,f], 0;force=true)
+    if Switch.switch_base_year_bounds == 1
+        BaseYearSlack= @variable(model, BaseYearSlack[𝓕], container=JuMP.Containers.DenseAxisArray) 
+        BaseYearBounds_TooLow = def_daa(𝓡,𝓣,𝓕,𝓨)
+        BaseYearBounds_TooHigh = def_daa(𝓨,𝓡,𝓣,𝓕)
+        for y ∈ 𝓨, r ∈ 𝓡, t ∈ 𝓣
+            for f ∈ Maps.Tech_Fuel[t]
+                BaseYearBounds_TooLow[r,t,f,y] = @variable(model, lower_bound = 0, base_name= "BaseYearBounds_TooLow[$r,$t,$f,$y]")
+                BaseYearBounds_TooHigh[y,r,t,f] = @variable(model, lower_bound = 0, base_name= "BaseYearBounds_TooHigh[$y,$r,$t,$f]")
+                if Switch.switch_base_year_bounds_debugging == 0
+                    JuMP.fix(BaseYearBounds_TooLow[r,t,f,y], 0;force=true)
+                    JuMP.fix(BaseYearBounds_TooHigh[y,r,t,f], 0;force=true)
+                end
             end
-        end
-    end end end
-    DiscountedSalvageValueTransmission= @variable(model, DiscountedSalvageValueTransmission[𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
-    
+        end 
+    else
+        BaseYearSlack = nothing
+        BaseYearBounds_TooLow = nothing
+        BaseYearBounds_TooHigh = nothing
+    end
+
+    if Switch.switch_dispatch == 0
+        DiscountedSalvageValueTransmission= @variable(model, DiscountedSalvageValueTransmission[𝓨,𝓡] >= 0, container=JuMP.Containers.DenseAxisArray) 
+    else
+        DiscountedSalvageValueTransmission = nothing
+    end
+
+
     Vars = GENeSYS_MOD.Variables(NewCapacity,AccumulatedNewCapacity,TotalCapacityAnnual,
     RateOfActivity,TotalAnnualTechnologyActivityByMode,ProductionByTechnologyAnnual,
     UseByTechnologyAnnual,TotalTechnologyAnnualActivity,TotalActivityPerYear,CurtailedEnergyAnnual,
@@ -236,19 +276,18 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     SalvageValue,DiscountedSalvageValue,OperatingCost,DiscountedOperatingCost,AnnualVariableOperatingCost,
     AnnualFixedOperatingCost,VariableOperatingCost,TotalDiscountedCost,TotalDiscountedCostByTechnology,
     AnnualCurtailmentCost,DiscountedAnnualCurtailmentCost,
-    StorageLevelYearStart,StorageLevelYearFinish,StorageLevelTSStart,AccumulatedNewStorageCapacity,NewStorageCapacity,
-    CapitalInvestmentStorage,DiscountedCapitalInvestmentStorage,SalvageValueStorage,
-    DiscountedSalvageValueStorage,TotalDiscountedStorageCost,TotalActivityInReserveMargin,
-    DemandNeedingReserveMargin,TotalREProductionAnnual,RETotalDemandOfTargetFuelAnnual,
-    TotalTechnologyModelPeriodActivity,RETargetMin,AnnualTechnologyEmissionByMode,
-    AnnualTechnologyEmission,AnnualTechnologyEmissionPenaltyByEmission,AnnualTechnologyEmissionsPenalty,
+    StorageLevelYearStart,StorageLevelTSStart,AccumulatedNewStorageCapacity,NewStorageCapacity,SalvageValueStorage,
+    DiscountedSalvageValueStorage,TotalDiscountedStorageCost,SoC_Inter,SoC_Intra,TotalActivityInReserveMargin,
+    DemandNeedingReserveMargin,TotalREProductionAnnual,
+    TotalTechnologyModelPeriodActivity,AnnualTechnologyEmissionByMode,
+    AnnualTechnologyEmission,AnnualTechnologyEmissionPenaltyByEmission,
     DiscountedTechnologyEmissionsPenalty,AnnualEmissions,ModelPeriodEmissions,WeightedAnnualEmissions,
-    AnnualSectoralEmissions,Import,Export,NewTradeCapacity,TotalTradeCapacity,NewTradeCapacityCosts,
-    DiscountedNewTradeCapacityCosts,NetTrade,NetTradeAnnual,TotalTradeCosts,AnnualTotalTradeCosts,
+    Import,Export,NewTradeCapacity,TotalTradeCapacity,NewTradeCapacityCosts,
+    DiscountedNewTradeCapacityCosts,NetTrade,NetTradeAnnual,AnnualTotalTradeCosts,
     DiscountedAnnualTotalTradeCosts,DemandSplitByModalType,ProductionSplitByModalType,
     ProductionUpChangeInTimeslice,ProductionDownChangeInTimeslice,
     RateOfTotalActivity,BaseYearSlack,BaseYearBounds_TooLow,BaseYearBounds_TooHigh, DiscountedSalvageValueTransmission,PeakingDemand,PeakingCapacity,
-    AnnualProductionChangeCost,DiscountedAnnualProductionChangeCost)
+    AnnualProductionChangeCost,DiscountedAnnualProductionChangeCost, SoC_Intra_min, SoC_Intra_max)
     return Vars
 end
 

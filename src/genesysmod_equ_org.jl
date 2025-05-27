@@ -61,7 +61,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps)
       sum(Vars.TotalDiscountedCost[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
       + sum(Vars.DiscountedAnnualTotalTradeCosts[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
       + sum(Vars.DiscountedNewTradeCapacityCosts[y,f,r,rr] for y ∈ 𝓨 for f ∈ Params.TagFuelToSubsets["TradeInv"] for r ∈ 𝓡 for rr ∈ 𝓡)
-      #+ sum(Vars.DiscountedAnnualCurtailmentCost[y,f,r] for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡)
+      + sum(Vars.DiscountedAnnualCurtailmentCost[y,f,r] for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡)
       - sum(Vars.DiscountedSalvageValueTransmission[y,r] for y ∈ 𝓨 for r ∈ 𝓡))
       print("Cstr: Cost : ",Dates.now()-start,"\n")
     end
@@ -428,59 +428,60 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps)
  
   ############### Trade Capacities & Investments #############
   
-  for f ∈ Params.TagFuelToSubsets["TradeInv"], i ∈ eachindex(𝓨), r ∈ 𝓡, rr ∈ 𝓡
-    ## allow trade expansion electricity and h2
-    if Params.TradeRoute[r,rr,f,𝓨[i]] > 0
-      if 𝓨[i] == Switch.StartYear
-        @constraint(model, Vars.TotalTradeCapacity[𝓨[i],f,r,rr] == Params.TradeCapacity[r,rr,f,𝓨[i]], base_name="TrC2a_TotalTradeCapacityStartYear|$(𝓨[i])|$(f)|$(r)|$(rr)")
-      end
-      for l ∈ 𝓛
-        @constraint(model, (model[:Import][𝓨[i],l,f,r,rr]) <= model[:TotalTradeCapacity][𝓨[i],f,rr,r]*Params.YearSplit[l,𝓨[i]]*31.536 , base_name="TrC1_TradeCapacityPowerLinesImport|$(𝓨[i])|$(l)_Power|$(r)|$(rr)")
-      end
-
-      if Switch.switch_dispatch == 0
-        if Params.GrowthRateTradeCapacity[r,rr,f,𝓨[i]] > 0
-
+  if Switch.switch_dispatch == 0
+    for i ∈ eachindex(𝓨), r ∈ 𝓡, rr ∈ 𝓡
+      for f ∈ Params.TagFuelToSubsets["TradeInv"]
+        if Params.TradeRoute[r,rr,f,𝓨[i]] > 0
           @constraint(model, Vars.NewTradeCapacity[𝓨[i],f,r,rr] >= Vars.NewTradeCapacity[𝓨[i],f,rr,r] * Switch.set_symmetric_transmission,
-          base_name="TrC6_SymmetricalTransmissionExpansion|$(𝓨[i])|$(r)|$(rr)")
-
-          if i > 1 
-            @constraint(model, Vars.TotalTradeCapacity[𝓨[i],f,r,rr] == Vars.TotalTradeCapacity[𝓨[i-1],f,r,rr] + Vars.NewTradeCapacity[𝓨[i],f,r,rr], 
-            base_name="TrC2b_TotalTradeCapacity|$(𝓨[i])|$(f)|$(r)|$(rr)")
-
-            if Params.TradeCapacity[r,rr,f,𝓨[1]] > 0 
-              @constraint(model, Vars.TotalTradeCapacity[𝓨[end],f,r,rr] <= Vars.TotalTradeCapacity[𝓨[1],f,r,rr]*1.5, 
-              base_name="TrC3_NewTradeCapacityLimitPowerLines|$(𝓨[i])|Power|$(r)|$(rr)")
-
-              #@constraint(model, (Params.GrowthRateTradeCapacity[r,rr,f,𝓨[i]]*YearlyDifferenceMultiplier(𝓨[i],Sets))*Vars.TotalTradeCapacity[𝓨[i-1],f,r,rr] >= Vars.TotalTradeCapacity[𝓨[i],f,r,rr], 
-              #base_name="TrC3_NewTradeCapacityLimitPowerLines|$(𝓨[i])|Power|$(r)|$(rr)")
-            end
+        base_name="TrC6_SymmetricalTransmissionExpansion|$(𝓨[i])|$(r)|$(rr)")
+          for l ∈ 𝓛
+            @constraint(model, (model[:Import][𝓨[i],l,f,r,rr]) <= model[:TotalTradeCapacity][𝓨[i],f,rr,r]*Params.YearSplit[l,𝓨[i]]*31.536 , base_name="TrC1_TradeCapacityPowerLinesImport|$(𝓨[i])|$(l)_Power|$(r)|$(rr)")
           end
-
-          @constraint(model, Vars.NewTradeCapacity[𝓨[i],f,r,rr]*Params.TradeCapacityGrowthCosts[r,rr,f]*Params.TradeRoute[r,rr,f,𝓨[1]] == Vars.NewTradeCapacityCosts[𝓨[i],f,r,rr], base_name="TrC4_NewTradeCapacityCosts|$(𝓨[i])|$(f)|$(r)|$(rr)")
-          @constraint(model, Vars.NewTradeCapacityCosts[𝓨[i],f,r,rr]/((1+Settings.GeneralDiscountRate[r])^(𝓨[i]-Switch.StartYear+0.5)) == Vars.DiscountedNewTradeCapacityCosts[𝓨[i],f,r,rr], base_name="TrC5_DiscountedNewTradeCapacityCosts|$(𝓨[i])|$(f)|$(r)|$(rr)")
-        else
-          ## gas expansion is not allowed
+          if Params.TradeCapacityGrowthCosts[r,rr,f] != 0
+            @constraint(model, Vars.NewTradeCapacity[𝓨[i],f,r,rr]*Params.TradeCapacityGrowthCosts[r,rr,f]*Params.TradeRoute[r,rr,f,𝓨[1]] == Vars.NewTradeCapacityCosts[𝓨[i],f,r,rr], base_name="TrC4_NewTradeCapacityCosts|$(𝓨[i])|$(f)|$(r)|$(rr)")
+            @constraint(model, Vars.NewTradeCapacityCosts[𝓨[i],f,r,rr]/((1+Settings.GeneralDiscountRate[r])^(𝓨[i]-Switch.StartYear+0.5)) == Vars.DiscountedNewTradeCapacityCosts[𝓨[i],f,r,rr], base_name="TrC5_DiscountedNewTradeCapacityCosts|$(𝓨[i])|$(f)|$(r)|$(rr)")
+          end
+        elseif Params.TradeRoute[r,rr,f,𝓨[1]] == 0 || Params.TradeCapacityGrowthCosts[r,rr,f] == 0
           JuMP.fix(Vars.DiscountedNewTradeCapacityCosts[𝓨[i],f,r,rr],0; force=true)
           JuMP.fix(Vars.NewTradeCapacity[𝓨[i],f,r,rr],0; force=true)
         end
       end
-    else
-      JuMP.fix(Vars.TotalTradeCapacity[𝓨[i],f,rr,r],0; force=true)
-      for l ∈ 𝓛
-        JuMP.fix(Vars.Import[𝓨[i],l,f,r,rr],0; force=true)
+
+      for f ∈ setdiff(𝓕, Params.TagFuelToSubsets["TradeInv"])
+        if Params.TradeRoute[r,rr,f,𝓨[i]] > 0 && Params.TradeCapacityGrowthCosts[r,rr,f] > 0 
+          @constraint(model, sum(Vars.Import[𝓨[i],l,f,rr,r] for l ∈ 𝓛) <= Vars.TotalTradeCapacity[𝓨[i],f,r,rr],
+        base_name="TrC7_TradeCapacityLimitNonPower$(𝓨[i])|$(f)|$(r)|$(rr)")
+          @constraint(model, Vars.TotalTradeCapacity[𝓨[i],f,r,rr] == Params.TradeCapacity[r,rr,f,𝓨[i]], base_name="TrC2a_TotalTradeCapacityStartYear|$(𝓨[i])|$(f)|$(r)|$(rr)")
+        end
+      end
+
+      for f ∈ Params.TagFuelToSubsets["TradeInv"]
+        if Params.TradeRoute[r,rr,f,𝓨[i]] > 0
+          if 𝓨[i] == Switch.StartYear
+            @constraint(model, Vars.TotalTradeCapacity[𝓨[i],f,r,rr] == Params.TradeCapacity[r,rr,f,𝓨[i]], base_name="TrC2a_TotalTradeCapacityStartYear|$(𝓨[i])|$(f)|$(r)|$(rr)")
+          else
+            @constraint(model, Vars.TotalTradeCapacity[𝓨[i],f,r,rr] == Vars.TotalTradeCapacity[𝓨[i-1],f,r,rr] + Vars.NewTradeCapacity[𝓨[i],f,r,rr], 
+            base_name="TrC2b_TotalTradeCapacity|$(𝓨[i])|$(f)|$(r)|$(rr)")
+            if Params.GrowthRateTradeCapacity[r,rr,f,𝓨[i]] > 0 && Params.TradeCapacity[r,rr,f,𝓨[1]] != 0
+              @constraint(model, (Params.GrowthRateTradeCapacity[r,rr,f,𝓨[i]]*YearlyDifferenceMultiplier(𝓨[i],Sets))*Vars.TotalTradeCapacity[𝓨[i-1],f,r,rr] >= Vars.TotalTradeCapacity[𝓨[i],f,r,rr], 
+            base_name="TrC3_NewTradeCapacityLimitPowerLines|$(𝓨[i])|Power|$(r)|$(rr)")
+            end
+          end
+        end
       end
     end
   end
 
-  for y ∈ 𝓨, r ∈ 𝓡
+
+
+  for y ∈ 𝓨 for r ∈ 𝓡
     if sum(Params.TradeRoute[r,rr,f,y] for f ∈ 𝓕 for rr ∈ 𝓡) > 0
-        @constraint(model, sum(Vars.Import[y,l,f,r,rr] * Params.TradeCosts[f,r,rr] for f ∈ 𝓕 for rr ∈ 𝓡 for l ∈ 𝓛 if Params.TradeRoute[r,rr,f,y] > 0) == Vars.AnnualTotalTradeCosts[y,r], base_name="TC1_AnnualTradeCosts|$(y)|$(r)")
+      @constraint(model, sum(Vars.Import[y,l,f,r,rr] * Params.TradeCosts[f,r,rr] for f ∈ 𝓕 for rr ∈ 𝓡 for l ∈ 𝓛 if Params.TradeRoute[r,rr,f,y] > 0) == Vars.AnnualTotalTradeCosts[y,r], base_name="TC1_AnnualTradeCosts|$(y)|$(r)")
     else
       JuMP.fix(Vars.AnnualTotalTradeCosts[y,r], 0; force=true)
     end
     @constraint(model, Vars.AnnualTotalTradeCosts[y,r]/((1+Settings.GeneralDiscountRate[r])^(y-Switch.StartYear+0.5)) == Vars.DiscountedAnnualTotalTradeCosts[y,r], base_name="TC2_DiscountedAnnualTradeCosts|$(y)|$(r)")
-  end 
+  end end 
   
   ############### Accounting Technology Production/Use #############
   
