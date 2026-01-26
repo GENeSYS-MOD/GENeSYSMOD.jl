@@ -740,7 +740,11 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     tmp2_p= JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year),length(Sets.Fuel)), Sets.Year, Sets.Fuel)
     for f ∈ Sets.Fuel for y ∈ Sets.Year
         tmp[y,f] = sum(fed[y,f,r,se] for r ∈ Sets.Region_full for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ Sets.Region_full)
-        tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27)
+        if !isempty(EU27)
+            tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27) 
+        else
+            tmp2[y,f] = 0
+        end
         tmp_p[y,f] = tmp[y,f]/sum(tmp[y,:])
         tmp2_p[y,f] = tmp2[y,f]/sum(tmp2[y,:])
     end end
@@ -780,8 +784,17 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     for y ∈ Sets.Year, r ∈ Sets.Region_full
         for f ∈ setdiff(Sets.Fuel, ["Area_Rooftop_Residential","Area_Rooftop_Commercial"])
             techs = [t for (t,f_) in Maps.Set_Tech_FuelOut if f_ == f]
-            if !isempty(techs) && sum(Params.InputActivityRatio[r,t,:,:,y] for t in techs) == 0
-                pe[y,f,r] = sum(value(Vars.ProductionByTechnologyAnnual[y,t,f,r]) for t ∈ techs if sum(Params.InputActivityRatio[r,t,:,:,y]) == 0)/3.6
+            if !isempty(techs)
+                input_fuels = [ff for t in techs for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t]
+                modes = [m for t in techs for m in Maps.Tech_MO[t]]
+                input_sum = !isempty(input_fuels) && !isempty(modes) ? sum(Params.InputActivityRatio[r,t,f2,m,y] for t in techs for f2 in input_fuels if tt == t for m in modes) : 0.0
+                
+                if input_sum == 0
+                    valid_techs = [t for t in techs if isempty([m for m in Maps.Tech_MO[t]]) || sum(Params.InputActivityRatio[r,t,f2,m,y] for f2 in [ff for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t] for m in Maps.Tech_MO[t]; init=0.0) == 0]
+                    pe[y,f,r] = !isempty(valid_techs) ? sum(value(Vars.ProductionByTechnologyAnnual[y,t,f,r]) for t ∈ valid_techs)/3.6 : 0.0
+                else
+                    pe[y,f,r] = 0
+                end
             else
                 pe[y,f,r] = 0
             end

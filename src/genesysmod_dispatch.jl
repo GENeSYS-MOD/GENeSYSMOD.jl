@@ -203,22 +203,22 @@ function genesysmod_dispatch(; solver, DNLPsolver, year=2018,
 
     set_optimizer(model, solver)
 
-    if string(solver) == "Gurobi.Optimizer"
+    if solver_name(model) == "Gurobi"
         set_optimizer_attribute(model, "Threads", threads)
         #set_optimizer_attribute(model, "Names", "no")
         set_optimizer_attribute(model, "Method", 2)
         set_optimizer_attribute(model, "BarHomogeneous", 1)
         set_optimizer_attribute(model, "Crossover", 0)
         set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
-    elseif string(solver) == "CPLEX.Optimizer"
+    elseif solver_name(model) == "CPLEX"
         set_optimizer_attribute(model, "CPX_PARAM_THREADS", threads)
         set_optimizer_attribute(model, "CPX_PARAM_PARALLELMODE", -1)
         set_optimizer_attribute(model, "CPX_PARAM_LPMETHOD", 4)
         set_optimizer_attribute(model, "CPX_PARAM_SOLUTIONTYPE", 2)
-        env = model.moi_backend.optimizer.model.env
-        CPXsetlogfilename(env, joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"), "w+")
+        #env = model.moi_backend.optimizer.model.env
+        #CPXsetlogfilename(env, joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"), "w+")
         #set_optimizer_attribute(model, "CPX_PARAM_BAROBJRNG", 1e+075)
-    elseif string(solver) == "HiGHS.Optimizer"
+    elseif solver_name(model) == "HiGHS"
         set_optimizer_attribute(model, "solver", "ipm")
         #set_optimizer_attribute(model, "solver", "pdlp")
         set_optimizer_attribute(model, "run_crossover", "off")
@@ -312,7 +312,7 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     return 0
 end
 
-function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_dispatch::OneNodeStorage)
+function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_dispatch::OneNodeStorage;threshold=1e-5)
     # read investment results for relevant variables (from a run on full Europe)
     tmp_TotalCapacityAnnual, tmp_TotalTradeCapacity, tmp_NewStorageCapacity = read_investments(Sets, Switch, region_full, Switch.switch_raw_results)
     tmp_TotalCapacityAnnual = tmp_TotalCapacityAnnual[:,:,Sets.Region_full]
@@ -323,7 +323,7 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     # make constraints fixing investments
     for y ∈ Sets.Year for r ∈ Sets.Region_full
         for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
-            fix(model[:TotalCapacityAnnual][y,t,r], tmp_TotalCapacityAnnual[y,t,r]; force=true)
+            fix(model[:TotalCapacityAnnual][y,t,r], tmp_TotalCapacityAnnual[y,t,r]!= 0 ? max(threshold,tmp_TotalCapacityAnnual[y,t,r]) : 0; force=true)
         end
         if Switch.switch_infeasibility_tech == 1
             for t ∈ Params.Tags.TagTechnologyToSubsets["DummyTechnology"]
@@ -331,12 +331,12 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
             end
         end
         # exchange capacity (capacity unit)
-        fix(model[:TotalCapacityAnnual][y,"D_Trade_Storage_Power",r], trade_capacity_in; force=true)
+        fix(model[:TotalCapacityAnnual][y,"D_Trade_Storage_Power",r], trade_capacity_in != 0 ? max(threshold,trade_capacity_in) : 0; force=true)
         # storage capacity (energy unit)
         fix(model[:NewStorageCapacity]["S_Trade_Storage_Power",y,r], 500; force=true)
 
         for s ∈ setdiff(Sets.Storage, ["S_Trade_Storage_Power"])
-            fix(model[:NewStorageCapacity][s,y,r], tmp_NewStorageCapacity[s,y,r]; force=true)
+            fix(model[:NewStorageCapacity][s,y,r], tmp_NewStorageCapacity[s,y,r] != 0 ? max(threshold,tmp_NewStorageCapacity[s,y,r]) : 0; force=true)
         end
 
     end end

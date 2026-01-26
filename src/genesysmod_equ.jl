@@ -541,7 +541,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
   for y ∈ 𝓨 for r ∈ 𝓡
     set_fuel_region2 = [(x,z) for (x,y,z) ∈ Maps.Set_Fuel_Regions if y == r]
-    if sum(Params.TradeRoute[r,rr,f,y] for (f,rr) ∈ set_fuel_region2) > 0
+    if !isempty(set_fuel_region2) && sum(Params.TradeRoute[r,rr,f,y] for (f,rr) ∈ set_fuel_region2) > 0
       @constraint(model, sum(Vars.Import[y,l,f,r,rr] * Params.TradeCosts[r,f,y,rr] for (f,rr) ∈ set_fuel_region2 for l ∈ 𝓛) == Vars.AnnualTotalTradeCosts[y,r], base_name="TC1_AnnualTradeCosts|$(y)|$(r)")
     else
       JuMP.fix(Vars.AnnualTotalTradeCosts[y,r], 0; force=true)
@@ -1075,9 +1075,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end end
     if Switch.switch_dispatch isa NoDispatch
         for r ∈ 𝓡
-            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy && 𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for t ∈ Params.Tags.TagTechnologyToSubsets["StorageDummies"] for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy && 𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7a_Add_E2PRatio_up|$(s)|$(𝓨[i])|$(r)")
-            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy) && (𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for t ∈ Params.Tags.TagTechnologyToSubsets["StorageDummies"] for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy) && (𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7b_Add_E2PRatio_low|$(s)|$(𝓨[i])|$(r)")
         end
     end
@@ -1292,7 +1292,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
       if y >Switch.set_peaking_startyear
         @constraint(model,
         Vars.PeakingCapacity[y,r] + (Switch.switch_peaking_with_trade == 1 ? sum(Vars.TotalTradeCapacity[y,"Power",rr,r] for rr ∈ [z for (f,x,z) in Maps.Set_Fuel_Regions if f == "Power" && x == r]) : 0)
-        + (Switch.switch_peaking_with_storages == 1 ? sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ Params.Tags.TagTechnologyToSubsets["StorageDummies"] if (sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t]) != 0 && sum(sum(Params.TechnologyToStorage[t,:,m,y]) for m ∈ Maps.Tech_MO[t]) != 0)) : 0)
+        + (Switch.switch_peaking_with_storages == 1 ? sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) if (sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t]) != 0 && sum(sum(Params.TechnologyToStorage[t,:,m,y]) for m ∈ Maps.Tech_MO[t]) != 0)) : 0)
         >= Vars.PeakingDemand[y,r]*PeakingSlack,
         base_name="PC3_PeakingConstraint|$(y)|$(r)")
       end
