@@ -231,6 +231,7 @@ function update_inftechs_params!(Params, s_infeas::WithInfeasibilityTechs, s_dis
     Params.CapacityFactor[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:,:] .= 1
     Params.OperationalLife[Params.Tags.TagTechnologyToSubsets["DummyTechnology"]] .= 1
     Params.EmissionActivityRatio[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:,:,:] .= 0
+    Params.AnnualMaxNewCapacity[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 99999
 
     Params.Tags.TagTechnologyToModalType["Infeasibility_Mobility_Passenger",1,"MT_PSNG_ROAD"] .= 1
     Params.Tags.TagTechnologyToModalType["Infeasibility_Mobility_Passenger",1,"MT_PSNG_RAIL"] .= 1
