@@ -1,3 +1,6 @@
+cp(joinpath(pkgdir(GENeSYSMOD),"CondaPkg.toml"), joinpath(@__DIR__,"CondaPkg.toml"); force=true)
+using CondaPkg
+
 # Test for default parameters
 if haskey(ENV, "GENESYSMOD_DATADIR")
     datadir = ENV["GENESYSMOD_DATADIR"]
@@ -59,3 +62,4 @@ end
         @test sum([startswith(file,"Timeseries") for file in files]) == 1
     end
 end
+rm(joinpath(@__DIR__,"CondaPkg.toml"))

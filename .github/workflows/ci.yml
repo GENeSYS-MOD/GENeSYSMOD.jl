@@ -49,16 +49,16 @@ jobs:
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate(); using CondaPkg; CondaPkg.resolve(); CondaPkg.status()'
 
-      # Export CondaPkg's Python path so PyCall will link to it on build
-      - name: Point PyCall to CondaPkg Python
+      # Export CondaPkg's Python path so PythonCall will link to it on build
+      - name: Point PythonCall to CondaPkg Python
         shell: bash
         run: |
           PY=$(julia --project -e 'using CondaPkg; print(CondaPkg.which("python"))')
           echo "Using CondaPkg python at: $PY"
           echo "PYTHON=$PY" >> "$GITHUB_ENV"
       
-      - name: Build PyCall
-        run: julia --project -e 'import Pkg; Pkg.build("PyCall")'
+      - name: Build PythonCall
+        run: julia --project -e 'import Pkg; Pkg.build("PythonCall")'
 
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1        

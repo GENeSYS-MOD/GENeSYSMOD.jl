@@ -77,4 +77,7 @@ It also contains the tools necessary to produce the input file for the model fro
 
 You can directly retrieve preprocessed datafiles that are part of releases of the data repository for the main geographic scopes and storylines. To do this you can use the `fetch_data_release` function.
 
-It is also possible to use the function `update_and_process_data` to automatically clone the data repository if needed, pull the latest changes and create the input files based on your own requirements of e.g. countries, and technologies to include, defined in the file `Set_filter_files.xlsx`.
+It is also possible to use the function `update_and_process_data` to automatically clone the data repository if needed, pull the latest changes and create the input files based on your own requirements of e.g. countries, and technologies to include, defined in the file `Set_filter_files.xlsx`. In order to do this, you first need to copy the file CondaPkg.toml to your work directory and add a call to CondaPkg to your code:
+```julia
+using CondaPkg
+```

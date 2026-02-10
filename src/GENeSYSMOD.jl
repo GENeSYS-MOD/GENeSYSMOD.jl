@@ -12,9 +12,9 @@ using JuMP
 using XLSX
 using CSV
 using Statistics
-using PyCall
-using LibGit2
 using CondaPkg
+using PythonCall
+using LibGit2
 using Downloads
 
 const DenseArray = JuMP.Containers.DenseAxisArray

@@ -62,7 +62,7 @@ function update_and_process_data(;settings_file = nothing, scenario_option = "Eu
     end
 
     # Call Python processing function
-    py"""
+    @pyexec """
 import sys
 import os
 from pathlib import Path
@@ -73,9 +73,9 @@ script_path = str(cwd/'Conversion Script')
 if script_path not in sys.path:
     sys.path.append(script_path)
 from functions.function_import import master_function
-    """
+"""
     cd(joinpath(pwd(), "Conversion Script"))
-    master_function = pyimport("functions.function_import").master_function
+    master_function = PythonCall.pyimport("functions.function_import").master_function
 
     output_file_format = "excel"
     if isnothing(settings_file)
