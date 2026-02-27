@@ -1,5 +1,6 @@
 [![Model docs](https://img.shields.io/badge/Model%20docs%20-%20blue)](https://genesysmod.readthedocs.io/en/latest/index.html#)
 [![Julia docs](https://img.shields.io/badge/.jl%20docs%20-%20stable%20-%20blue)](https://genesys-mod.github.io/GENeSYSMOD.jl/)
+[![CI](https://github.com/GENeSYS-MOD/GENeSYSMOD.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/GENeSYS-MOD/GENeSYSMOD.jl/actions/workflows/ci.yml)
 
 # GENeSYSMOD.jl
 The Global Energy System Model - or GENeSYS-MOD - is an open source cross-sectoral energy system model aimed at long-term developments of the energy system.
