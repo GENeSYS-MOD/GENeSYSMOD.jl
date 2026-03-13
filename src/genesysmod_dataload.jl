@@ -1,23 +1,3 @@
-# GENeSYS-MOD v3.1 [Global Energy System Model]  ~ March 2022
-#
-# #############################################################
-#
-# Copyright 2020 Technische Universität Berlin and DIW Berlin
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# #############################################################
-
 """
 Internal function used in the run process to load the input data and create the reduced timeseries.
 """
@@ -59,7 +39,7 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     # ####### Load from hourly Data #############
     #
 
-    GENeSYS_MOD.timeseries_reduction!(Params, Sets, Switch)
+    GENeSYSMOD.timeseries_reduction!(Params, Sets, Switch)
 
     for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
         Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
@@ -653,7 +633,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     SpecifiedDemandProfile = DenseArray(zeros(length.([𝓡, 𝓕, 𝓛, 𝓨])...), 𝓡, 𝓕, 𝓛, 𝓨)
     YearSplit = DenseArray(ones(length.([𝓛, 𝓨])...) * 1/length(𝓛), 𝓛, 𝓨)
 
-    Params = GENeSYS_MOD.Parameters(YearSplit,Params_Full.Tags,SpecifiedAnnualDemand,
+    Params = GENeSYSMOD.Parameters(YearSplit,Params_Full.Tags,SpecifiedAnnualDemand,
     SpecifiedDemandDevelopment,
     SpecifiedDemandProfile,RateOfDemand,Demand,CapacityToActivityUnit,CapacityFactor,
     AvailabilityFactor,OperationalLife,ResidualCapacity,InputActivityRatio,OutputActivityRatio,

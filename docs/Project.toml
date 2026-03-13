@@ -1,7 +1,7 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-GENeSYS_MOD = "9f3a37f9-d498-4265-a124-3ae3e9ff3acf"
+GENeSYSMOD = "9f3a37f9-d498-4265-a124-3ae3e9ff3acf"
 
 [compat]
 Documenter = "0.27.25"
-GENeSYS_MOD = "0.1.0"
+GENeSYSMOD = "4.0.0"

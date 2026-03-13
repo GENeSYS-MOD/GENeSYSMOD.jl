@@ -1,32 +1,10 @@
-# GENeSYS-MOD v3.1 [Global Energy System Model]  ~ March 2022
-#
-# #############################################################
-#
-# Copyright 2020 Technische Universität Berlin and DIW Berlin
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# #############################################################
-"""
-
-"""
 function genesysmod_employment(model,Params,Emp_Sets)
-    
+
     if Switch.switch_endogenous_employment == 0
         output_energyjobs = JuMP.Containers.DenseAxisArray(zeros(length(Emp_Sets.Technology),length(Emp_Sets.Year)), Emp_Sets.Technology, Emp_Sets.Year)
 
         for i ∈ 2:length(Emp_Sets.Year)-1
-            for t ∈ Emp_Sets.Technology 
+            for t ∈ Emp_Sets.Technology
                 if Params.EFactorConstruction[t,Emp_Sets.Year[i]] == 0
                     Params.EFactorConstruction[t,Emp_Sets.Year[i]] = (Params.EFactorConstruction[t,Emp_Sets.Year[i-1]]+Params.EFactorConstruction[t,Emp_Sets.Year[i+1]])/2
                 end
@@ -62,7 +40,7 @@ function genesysmod_employment(model,Params,Emp_Sets)
                 Params.LocalManufacturingFactor[Switch.model_region,Emp_Sets.Year[i]] = (Params.LocalManufacturingFactor[Switch.model_region,Emp_Sets.Year[i-1]] + Params.LocalManufacturingFactor[Switch.model_region,Emp_Sets.Year[i+1]])/2
             end
         end
-        
+
         for t ∈ Emp_Sets.Technology for y ∈ Emp_Sets.Year
             output_energyjobs[Switch.model_region,t,"ManufacturingJobs","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y] = sum(output_capacity[Switch.model_region,se,t,"NewCapacity","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]*Params.Params.EFactorManufacturing[t,y]*Params.RegionalAdjustmentFactor[Switch.model_region,y]*Params.LocalManufacturingFactor[Switch.model_region,y]*(1-Params.DeclineRate[t,y])^YearlyDifferenceMultiplier(y,Emp_Sets) for se ∈ Sets.Sector)
             output_energyjobs[Switch.model_region,t,"ConstructionJobs","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y] =  sum(output_capacity[Switch.model_region,se,t,"NewCapacity","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]*Params.EFactorConstruction[t,y]*Params.RegionalAdjustmentFactor[Switch.model_region,y]*(1-Params.DeclineRate[t,y])^YearlyDifferenceMultiplier(y,Emp_Sets) for se ∈ Sets.Sector)
@@ -72,7 +50,7 @@ function genesysmod_employment(model,Params,Emp_Sets)
         for r ∈ Sets.Region_full for y in Emp_Sets.Year
             output_energyjobs[r,"Coal_Heat","SupplyJobs","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y] = (sum(sum((output_energy_balance[rr,se,"HLI_Hardcoal",m,"Hardcoal",l,"Use","PJ","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]+output_energy_balance[rr,se,"HMI_HardCoal",m,"Hardcoal",l,"Use","PJ","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]+output_energy_balance[rr,se,"HHI_BF_BOF",m,"Hardcoal",l,"Use","PJ","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]) for m ∈ Sets.Mode_of_operation for l ∈ Sets.Timeslice for se ∈ Sets.Sector ) for rr ∈ Sets.Region_full)*EFactorCoalJobs["Coal_Heat",y]*CoalSupply[r,y])*(-1)
             output_energyjobs[r,"Coal_Export","SupplyJobs","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y] = CoalSupply[r,y]*CoalDigging[Switch.model_region,"Coal_Export","$(Switch.emissionPathway)_$(Switch.emissionScenario)",y]*EFactorCoalJobs["Coal_Export",y]
-        end end 
-        
+        end end
+
     end
 end

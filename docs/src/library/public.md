@@ -9,7 +9,7 @@ Pages = ["public.md"]
 ## Types
 
 ```@autodocs
-Modules = [GENeSYS_MOD]
+Modules = [GENeSYSMOD]
 Private = false
 Order = [:type]
 ```
@@ -17,7 +17,7 @@ Order = [:type]
 ## Methods
 
 ```@autodocs
-Modules = [GENeSYS_MOD]
+Modules = [GENeSYSMOD]
 Private = false
 Order = [:function]
 ```

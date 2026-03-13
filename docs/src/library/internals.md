@@ -7,14 +7,14 @@ Pages = ["internals.md"]
 
 ## Types
 ```@autodocs
-Modules = [GENeSYS_MOD]
+Modules = [GENeSYSMOD]
 Public = false
 Order = [:type]
 ```
 
 ## Methods
 ```@autodocs
-Modules = [GENeSYS_MOD]
+Modules = [GENeSYSMOD]
 Public = false
 Order = [:function]
 ```

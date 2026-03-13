@@ -1,9 +1,9 @@
-# GENeSYS_MOD.jl
+# GENeSYSMOD.jl
 
-This Julia package provides a Julia implementation of the General ENergy SYStem MODel,  GENeSYS-MOD (originally in GAMS). [`GENeSYS_MOD.jl`](https://github.com/GENeSYS-MOD/GENeSYS_MOD.jl).
+This Julia package provides a Julia implementation of the General ENergy SYStem MODel,  GENeSYS-MOD (originally in GAMS). [`GENeSYSMOD.jl`](https://github.com/GENeSYS-MOD/GENeSYSMOD.jl).
 
 ```@docs
-GENeSYS_MOD
+GENeSYSMOD
 ```
 
 

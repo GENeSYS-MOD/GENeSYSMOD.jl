@@ -1,22 +1,3 @@
-# GENeSYS-MOD v3.1 [Global Energy System Model]  ~ March 2022
-#
-# #############################################################
-#
-# Copyright 2020 Technische Universität Berlin and DIW Berlin
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# #############################################################
 function def_daa(sets...)
     daa = DenseArray{Union{Float64,VariableRef}}(
         undef, sets...);
@@ -148,13 +129,12 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
 
     ######### Trade #############
     imp_exp_sets = isempty(Maps.Set_Fuel_Regions) ? Set([(String("ETS"),String(𝓡[1]),String(𝓡[1]))]) : Maps.Set_Fuel_Regions # dummy to avoid type problems in dispatch if se is empty
-    Import = @variable(model, Import[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) in imp_exp_sets] >= 0)
-    Export = @variable(model, Export[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) in imp_exp_sets] >= 0)
+    Import = @variable(model, Import[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
+    Export = @variable(model, Export[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     NewTradeCapacity = @variable(model, NewTradeCapacity[y=𝓨, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     TotalTradeCapacity = @variable(model, TotalTradeCapacity[y=𝓨, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     NewTradeCapacityCosts = @variable(model, NewTradeCapacityCosts[y=𝓨, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     DiscountedNewTradeCapacityCosts = @variable(model, DiscountedNewTradeCapacityCosts[y=𝓨, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
-
     NetTrade = @variable(model, NetTrade[𝓨,𝓛,𝓕,𝓡], container=DenseArray)
     NetTradeAnnual = @variable(model, NetTradeAnnual[𝓨,𝓕,𝓡], container=DenseArray)
     AnnualTotalTradeCosts = @variable(model, AnnualTotalTradeCosts[𝓨,𝓡], container=DenseArray)
@@ -209,7 +189,7 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
 
     DiscountedSalvageValueTransmission= @variable(model, DiscountedSalvageValueTransmission[𝓨,𝓡] >= 0, container=DenseArray)
 
-    Vars = GENeSYS_MOD.Variables(NewCapacity,AccumulatedNewCapacity,TotalCapacityAnnual,
+    Vars = GENeSYSMOD.Variables(NewCapacity,AccumulatedNewCapacity,TotalCapacityAnnual,
     RateOfActivity,TotalAnnualTechnologyActivityByMode,ProductionByTechnologyAnnual,
     UseByTechnologyAnnual,TotalTechnologyAnnualActivity,TotalActivityPerYear,CurtailedEnergyAnnual,
     CurtailedCapacity,CurtailedEnergy,DispatchDummy,CapitalInvestment,DiscountedCapitalInvestment,
