@@ -38,7 +38,7 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     switch_reserve=0,switch_base_year_bounds_debugging=0,
     extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1)
 
-        if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
+    if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
         @warn "Both elmod_nthhour and elmod_daystep/elmod_hourstep are defined.
          elmod_nthhour will be ignored. To use it, change elmod_daystep/elmod_hourstep to 0"
     elseif elmod_nthhour == 0 && elmod_daystep ==0 && elmod_hourstep ==0

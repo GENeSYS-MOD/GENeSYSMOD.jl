@@ -40,6 +40,10 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   # Objective Function #
   ######################
 
+  if !(Switch.switch_dispatch isa NoDispatch)
+    DummyEmissionInfeasibility = @variable(model, DummyEmissionInfeasibility[𝓨,𝓔,𝓡] >=0, container=DenseArray)
+  end
+
   start=Dates.now()
 
   @objective(model, MOI.MIN_SENSE, sum(Vars.TotalDiscountedCost[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
@@ -49,7 +53,8 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   + sum(Vars.BaseYearBounds_TooHigh[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
   + sum(Vars.BaseYearBounds_TooLow[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
   + sum(Vars.HeatingSlack[r,y]*9999 for r ∈ 𝓡 for y ∈ 𝓨)
-  - sum(Vars.DiscountedSalvageValueTransmission[y,r] for y ∈ 𝓨 for r ∈ 𝓡))
+  - sum(Vars.DiscountedSalvageValueTransmission[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
+  + (Switch.switch_dispatch isa NoDispatch ? 0 : sum(DummyEmissionInfeasibility[y,e,r] * 99999 for y ∈ 𝓨 for r ∈ 𝓡 for e ∈ 𝓔)))
   print("Cstr: Cost : ",Dates.now()-start,"\n")
 
 
@@ -928,7 +933,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   for e ∈ 𝓔
     for y ∈ 𝓨
       for r ∈ 𝓡
-        @constraint(model, sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ 𝓣) == Vars.AnnualEmissions[y,e,r],
+        @constraint(model, sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ 𝓣) - (Switch.switch_dispatch isa NoDispatch ? 0 : DummyEmissionInfeasibility[y,e,r]) == Vars.AnnualEmissions[y,e,r],
         base_name="E6_AnnualEmissionsAccounting|$(y)|$(e)|$(r)")
 
         @constraint(model, Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] <= Params.RegionalAnnualEmissionLimit[r,e,y],
@@ -984,7 +989,6 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ 𝓣 if Params.Tags.TagTechnologyToSector[t,se] != 0) == Vars.AnnualSectoralEmissions[y,e,se,r],
         base_name="E12_AnnualSectorEmissions|$(y)|$(e)|$(se)|$(r)")
       end
-
       @constraint(model,
       sum(Vars.AnnualSectoralEmissions[y,e,se,r] for r ∈ 𝓡 ) <= Params.AnnualSectoralEmissionLimit[e,se,y],
       base_name="E13_AnnualSectorEmissionsLimit|$(y)|$(e)|$(se)")
@@ -997,20 +1001,20 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
   for r ∈ 𝓡 for s ∈ 𝓢 for y ∈ 𝓨
     @constraint(model,
-    Vars.StorageLevelYearStart[s,y,r] <= Switch.set_storagelevelstart_up * sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if Params.OperationalLifeStorage[s] >= (y - yy) && (y - yy) >= 0) + Params.ResidualStorageCapacity[r,s,y], base_name="S1a_StorageLevelYearStartUpperLimit|$(r)|$(s)|$(y)")
+    Vars.StorageLevelYearStart[s,y,r] <= Switch.set_storagelevelstart_up * Vars.TotalStorageCapacityAnnual[s,y,r], base_name="S1a_StorageLevelYearStartUpperLimit|$(r)|$(s)|$(y)")
 
     @constraint(model,
-    Vars.StorageLevelYearStart[s,y,r] >= Switch.set_storagelevelstart_down * sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if Params.OperationalLifeStorage[s] >= (y - yy) && (y - yy) >= 0) + Params.ResidualStorageCapacity[r,s,y], base_name="S1b_StorageLevelYearStartLowerLimit|$(r)|$(s)|$(y)")
+    Vars.StorageLevelYearStart[s,y,r] >= Switch.set_storagelevelstart_down * Vars.TotalStorageCapacityAnnual[s,y,r], base_name="S1b_StorageLevelYearStartLowerLimit|$(r)|$(s)|$(y)")
   end end end
 
   for r ∈ 𝓡 for s ∈ 𝓢 for i ∈ eachindex(𝓨)
     @constraint(model,
-    sum((sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["StorageDummies"])  for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]>0)
-              - sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0)) for l ∈ 𝓛)
-              - (s == "S_Trade_Storage_Power" && Switch.switch_dispatch isa OneNodeStorage ? storage_ratio/Params.YearSplit[𝓛[1],𝓨[1]] : 0) == 0,
+    sum((sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["StorageDummies"])  for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]>0)
+              - sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0)) for l ∈ 𝓛)
+              - sum((s == "S_Trade_Storage_$f" && Switch.switch_dispatch isa OneNodeStorage ? storage_ratio[𝓨[i],f,r] : 0) for f ∈ 𝓕 if Params.Tags.TagCanFuelBeTraded[f] != 0) == 0,
               base_name="S3_StorageRefilling|$(r)|$(s)|$(𝓨[i])")
 
-    @constraint(model, Vars.StorageLevelYearStart[s,𝓨[i],r] ==  Vars.StorageLevelYearFinish[s,𝓨[i],r],
+    @constraint(model, Vars.StorageLevelYearStart[s,𝓨[i],r] + sum((s == "S_Trade_Storage_$f" && Switch.switch_dispatch isa OneNodeStorage ? storage_ratio[𝓨[i],f,r] : 0) for f ∈ 𝓕 if Params.Tags.TagCanFuelBeTraded[f] != 0) ==  Vars.StorageLevelYearFinish[s,𝓨[i],r],
     base_name="S4_StorageLevelYearFinish|$(s)|$(𝓨[i])|$(r)")
 
     for j ∈ eachindex(𝓛)
@@ -1021,7 +1025,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         + (j == 1 ? Vars.StorageLevelYearStart[s,𝓨[i],r] : 0)   == Vars.StorageLevelTSStart[s,𝓨[i],𝓛[j],r],
         base_name="S2_StorageLevelTSStart|$(r)|$(s)|$(𝓨[i])|$(𝓛[j])")
       @constraint(model,
-      sum(Vars.NewStorageCapacity[s,𝓨[i],r] + Params.ResidualStorageCapacity[r,s,𝓨[i]] for yy ∈ 𝓨 if (𝓨[i]-yy < Params.OperationalLifeStorage[s] && 𝓨[i]-yy >= 0))
+      Vars.TotalStorageCapacityAnnual[s,𝓨[i],r]
       >= Vars.StorageLevelTSStart[s,𝓨[i],𝓛[j],r],
       base_name="S5b_StorageChargeUpperLimit|$(s)|$(𝓨[i])|$(𝓛[j])|$(r)")
     end
@@ -1058,7 +1062,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
       if Params.MinStorageCharge[r,s,𝓨[i]] > 0
         for j ∈ eachindex(𝓛)
           @constraint(model,
-          Params.MinStorageCharge[r,s,𝓨[i]]*sum(Vars.NewStorageCapacity[s,𝓨[i],r] + Params.ResidualStorageCapacity[r,s,𝓨[i]] for yy ∈ 𝓨 if (𝓨[i]-yy < Params.OperationalLifeStorage[s] && 𝓨[i]-yy >= 0))
+          Params.MinStorageCharge[r,s,𝓨[i]]*Vars.TotalStorageCapacityAnnual[s,𝓨[i],r]
           <= Vars.StorageLevelTSStart[s,𝓨[i],𝓛[j],r],
           base_name="S5a_StorageChargeLowerLimit|$(s)|$(𝓨[i])|$(𝓛[j])|$(r)")
         end
@@ -1075,9 +1079,11 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end end
     if Switch.switch_dispatch isa NoDispatch
         for r ∈ 𝓡
-            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy && 𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] == (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy && 𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]),
+            base_name="S1_jl_TotalStorageCapacityAnnual|$(s)|$(𝓨[i])|$(r)")
+            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7a_Add_E2PRatio_up|$(s)|$(𝓨[i])|$(r)")
-            @constraint(model, (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy) && (𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]) >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7b_Add_E2PRatio_low|$(s)|$(𝓨[i])|$(r)")
         end
     end
@@ -1292,7 +1298,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
       if y >Switch.set_peaking_startyear
         @constraint(model,
         Vars.PeakingCapacity[y,r] + (Switch.switch_peaking_with_trade == 1 ? sum(Vars.TotalTradeCapacity[y,"Power",rr,r] for rr ∈ [z for (f,x,z) in Maps.Set_Fuel_Regions if f == "Power" && x == r]) : 0)
-        + (Switch.switch_peaking_with_storages == 1 ? sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) if (sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t]) != 0 && sum(sum(Params.TechnologyToStorage[t,:,m,y]) for m ∈ Maps.Tech_MO[t]) != 0)) : 0)
+        + (Switch.switch_peaking_with_storages == 1 ? sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ intersect(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) if (sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t];init=0) != 0 && sum(sum(Params.TechnologyToStorage[t,:,m,y]) for m ∈ Maps.Tech_MO[t];init=0) != 0)) : 0)
         >= Vars.PeakingDemand[y,r]*PeakingSlack,
         base_name="PC3_PeakingConstraint|$(y)|$(r)")
       end

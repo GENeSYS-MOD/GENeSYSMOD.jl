@@ -456,6 +456,7 @@ struct Variables
     StorageLevelTSStart ::VarDenseSIIS
     AccumulatedNewStorageCapacity ::VarDenseSIS
     NewStorageCapacity ::VarDenseSIS
+    TotalStorageCapacityAnnual ::VarDenseSIS
     CapitalInvestmentStorage ::VarDenseSIS
     DiscountedCapitalInvestmentStorage ::VarDenseSIS
     SalvageValueStorage ::VarDenseSIS

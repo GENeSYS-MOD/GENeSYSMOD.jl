@@ -94,7 +94,7 @@ function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
 
     for r ∈ Sets.Region_full, t ∈ Sets.Technology, y ∈ Sets.Year
         CCSByTechnologyAnnual[r, t, y] = sum(
-            JuMP.value(Vars.TotalAnnualTechnologyActivityByMode[y,t,m,r])*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]*YearlyDifferenceMultiplier(y,Sets)* (Params.EmissionActivityRatio[r,t,m,e,y] >= 0 ? 1-Params.EmissionActivityRatio[r,t,m,e,y] : -1 * Params.EmissionActivityRatio[r,t,m,e,y]) for e ∈ Sets.Emission for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t])
+            JuMP.value(Vars.TotalAnnualTechnologyActivityByMode[y,t,m,r])*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]*YearlyDifferenceMultiplier(y,Sets)* (Params.EmissionActivityRatio[r,t,m,e,y] >= 0 ? 1-Params.EmissionActivityRatio[r,t,m,e,y] : -1 * Params.EmissionActivityRatio[r,t,m,e,y]) for e ∈ Sets.Emission for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t]; init=0)
     end
 
     VarPar = Variable_Parameters(RateOfTotalActivity, RateOfProductionByTechnologyByMode, RateOfUseByTechnologyByMode, RateOfProductionByTechnology, RateOfUseByTechnology,

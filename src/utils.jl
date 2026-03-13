@@ -606,7 +606,7 @@ end
 function read_storage_capacities(; file, nam, year, technology, region)
     A = JuMP.Containers.DenseAxisArray(
         zeros(length(technology), length(year), length(region)),
-        technology, [2050], region)
+        technology, year, region)
 
     open(file, "r") do f
         while !eof(f)
@@ -618,9 +618,60 @@ function read_storage_capacities(; file, nam, year, technology, region)
                 tech = split(parts[2],",")[1]
                 r = split(split(parts[2],",")[3],"]")[1]
 
-                if r ∈ region && tech ∈ technology
-                    value = parse(Float64, split(split(line, "]")[2], "= ")[2])
-                    A[tech, 2050, r] += value
+                value = parse(Float64, split(split(line, "]")[2], "= ")[2])
+
+                if r ∈ region && tech ∈ technology && y ∈ year
+                    A[tech, y, r] = value
+                end
+            end
+        end
+    end
+    return A
+end
+
+function read_emissions_txt(;file, nam, year, emission, region)
+    A = JuMP.Containers.DenseAxisArray(
+        zeros(length(year), length(emission), length(region)),
+        year, emission, region)
+
+    open(file, "r") do f
+        while !eof(f)
+            line = readline(f)
+            if startswith(line, nam)
+                parts = split(line, "[")
+
+                y = parse(Int, split(parts[2], ",")[1])
+                em = split(parts[2],",")[2]
+                r = split(split(parts[2],",")[3],"]")[1]
+
+                value = parse(Float64, split(split(line, "]")[2], "= ")[2])
+                if r ∈ region && em ∈ emission && y ∈ year
+                    A[y, em, r] = value
+                end
+            end
+        end
+    end
+    return A
+end
+
+function read_nettrade_txt(;file,nam, year, fuel, region)
+    A = JuMP.Containers.DenseAxisArray(
+        zeros(length(year), length(fuel), length(region)),
+        year, fuel, region)
+
+    open(file, "r") do f
+        while !eof(f)
+            line = readline(f)
+            if startswith(line, nam)
+                parts = split(line, "[")
+
+                y = parse(Int, split(parts[2], ",")[1])
+                f = split(parts[2],",")[2]
+                r = split(split(parts[2],",")[3],"]")[1]
+
+                value = parse(Float64, split(split(line, "]")[2], "= ")[2])
+                if r ∈ region && f ∈ fuel && y ∈ year
+                    A[y, f, r] = value
                 end
             end
         end
