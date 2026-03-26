@@ -399,9 +399,12 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     end end
     # Update Regional Annual Emission Limits
     tmp_AnnualEmissions = read_emissions(Sets, Switch, region_full, Switch.switch_raw_results)
-    for y ∈ Sets.Year for r ∈ Sets.Region_full for e ∈ Sets.Emission
-        Params.RegionalAnnualEmissionLimit[r,e,y] = tmp_AnnualEmissions[y,e,r] + Params.AnnualExogenousEmission[r,e,y]
-    end end end
+    for y ∈ Sets.Year for e ∈ Sets.Emission
+        r2 = Sets.Region_full[2]
+        r1 = Sets.Region_full[1]
+        Params.RegionalAnnualEmissionLimit[r2,e,y] = sum(tmp_AnnualEmissions[y,e,r] for r in region_full if r != r1) + Params.AnnualExogenousEmission[r2,e,y]
+        Params.RegionalAnnualEmissionLimit[r1,e,y] = tmp_AnnualEmissions[y,e,r1] + Params.AnnualExogenousEmission[r1,e,y]
+    end end
     return 0
 end
 

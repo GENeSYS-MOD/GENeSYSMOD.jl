@@ -646,12 +646,12 @@ function read_nettrade_txt(;file,nam, year, fuel, region)
                 parts = split(line, "[")
 
                 y = parse(Int, split(parts[2], ",")[1])
-                f = split(parts[2],",")[2]
+                fu = split(parts[2],",")[2]
                 r = split(split(parts[2],",")[3],"]")[1]
 
                 value = parse(Float64, split(split(line, "]")[2], "= ")[2])
-                if r ∈ region && f ∈ fuel && y ∈ year
-                    A[y, f, r] = value
+                if r ∈ region && fu ∈ fuel && y ∈ year
+                    A[y, fu, r] = value
                 end
             end
         end
