@@ -138,7 +138,7 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
         switch_employment_calculation = 0, switch_endogenous_employment = 0, employment_data_file = "",
         elmod_dunkelflaute = 0, switch_raw_results = CSVResult(), switch_processed_results = 1, switch_LCOE_calc=0,
         switch_dispatch = OneNodeSimple("DE"), extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",
-        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1, dispatch_week=nothing)
+        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1, dispatch_week=nothing, solver_log=true)
 
     starttime= Dates.now()
 
@@ -194,7 +194,9 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
         set_optimizer_attribute(model, "Method", 2)
         set_optimizer_attribute(model, "BarHomogeneous", 1)
         set_optimizer_attribute(model, "Crossover", 0)
-        set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
+        if solver_log
+            set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
+        end
     elseif solver_name(model) == "CPLEX"
         set_optimizer_attribute(model, "CPX_PARAM_THREADS", threads)
         set_optimizer_attribute(model, "CPX_PARAM_PARALLELMODE", -1)
@@ -207,7 +209,9 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
         set_optimizer_attribute(model, "solver", "ipm")
         #set_optimizer_attribute(model, "solver", "pdlp")
         set_optimizer_attribute(model, "run_crossover", "off")
-        set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
+        if solver_log
+            set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
+        end
     end
 
     println("model_region = $model_region")

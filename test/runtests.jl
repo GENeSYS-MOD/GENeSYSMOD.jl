@@ -28,9 +28,10 @@ const TEST_RESULTS_DIR = joinpath(pkgdir(GENeSYSMOD),"test","TestData","Results"
     end
 end
 
+
 #clean Results folder and subfolders of everything
 for (root, dirs, files) in walkdir(TEST_RESULTS_DIR)
     for file in files
-        rm(joinpath(root, file))
+        rm(joinpath(root, file); force=true)
     end
 end

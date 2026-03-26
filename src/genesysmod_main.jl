@@ -156,7 +156,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8,
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, switch_LCOE_calc=0,
     switch_reserve=0,switch_base_year_bounds_debugging=0,
-    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1)
+    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1, solver_log=true)
 
     starttime = Dates.now()
 
@@ -205,7 +205,9 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         #set_optimizer_attribute(model, "Names", "no")
         set_optimizer_attribute(model, "Method", 2)
         set_optimizer_attribute(model, "BarHomogeneous", 1)
-        set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
+        if solver_log
+            set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
+        end
     elseif solver_name(model) == "CPLEX"
         set_optimizer_attribute(model, "CPX_PARAM_THREADS", threads)
         set_optimizer_attribute(model, "CPX_PARAM_PARALLELMODE", -1)
@@ -218,7 +220,9 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         set_optimizer_attribute(model, "solver", "ipm")
         #set_optimizer_attribute(model, "solver", "pdlp")
         set_optimizer_attribute(model, "run_crossover", "off")
-        set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
+        if solver_log
+            set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
+        end
     end
 
     println("model_region = $model_region")
