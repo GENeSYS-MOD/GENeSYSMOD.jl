@@ -64,6 +64,7 @@ jobs:
       - uses: julia-actions/julia-runtest@v1        
         env:
           GENESYSMOD_DATADIR: ${{ github.workspace }}/external
+          JULIA_PKG_PRECOMPILE_AUTO: "false"
         with:
           depwarn: error
       - uses: julia-actions/julia-processcoverage@v1
