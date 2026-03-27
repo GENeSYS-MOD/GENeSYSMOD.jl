@@ -138,7 +138,7 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
         switch_employment_calculation = 0, switch_endogenous_employment = 0, employment_data_file = "",
         elmod_dunkelflaute = 0, switch_raw_results = CSVResult(), switch_processed_results = 1, switch_LCOE_calc=0,
         switch_dispatch = OneNodeSimple("DE"), extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",
-        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1, dispatch_week=nothing, solver_log=true)
+        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1, dispatch_week=nothing, solver_log=true, solver_attr=Dict())
 
     starttime= Dates.now()
 
@@ -211,6 +211,14 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
         set_optimizer_attribute(model, "run_crossover", "off")
         if solver_log
             set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(switch.elmod_nthhour)_$(today()).log"))
+        end
+    end
+
+    for (k,v) in solver_attr
+        try
+            set_optimizer_attribute(model, k, v)
+        catch e
+            println("Warning: Could not set solver attribute $k to $v. Error: $e")
         end
     end
 
