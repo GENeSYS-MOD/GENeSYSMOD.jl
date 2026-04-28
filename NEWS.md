@@ -1,6 +1,10 @@
 Release Notes
 =============
 
+## Unreleased
+- Various fixes to Dispatch
+- Possibility to pass argeument to solver through a dictionary in solver_attr and to activate logging via solver_log
+
 ## v4.0.1
 - Add function to retrieve updated datafiles from the data repository via cloning, pulling and processing using custom filter file and corresponding tests.
 - Add function to retrieve generic datafiles from releases of the data repository and corresponding tests.

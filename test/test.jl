@@ -27,7 +27,8 @@ elmod_dunkelflaute= 0,
 switch_raw_results = TXTandCSV("result_test"),
 switch_processed_results = 1,
 write_reduced_timeserie = 1,
-model_region="europe"
+model_region="europe",
+solver_log=false
 );
 
 @test termination_status(model) == MOI.OPTIMAL

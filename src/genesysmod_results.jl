@@ -264,20 +264,22 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                             :PathwayScenario=>"$(Switch.emissionPathway)_$(Switch.emissionScenario)", :Technology=>"ExogenousEmissions")
     merge_df!(df_tmp, dict_col_value, output_emissions, colnames)
 
-    df_endo_emission = DataFrame([:Region=>[], :Emission=>[], :Year=>[], :Value=>[]])
+    if Switch.switch_dispatch isa NoDispatch
+        df_endo_emission = DataFrame([:Region=>[], :Emission=>[], :Year=>[], :Value=>[]])
 
-    for e ∈ Sets.Emission, y ∈ Sets.Year
-        tmp_val=0
-        for r ∈ Sets.Region_full
-            value = dual(constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")) * (-1) * (1 + Settings.GeneralDiscountRate[r])^(y - Sets.Year[1])
-            push!(df_endo_emission, (; Region=r, Emission=e, Year=y, Value=value))
-            tmp_val += value
+        for e ∈ Sets.Emission, y ∈ Sets.Year
+            tmp_val=0
+            for r ∈ Sets.Region_full
+                value = dual(constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")) * (-1) * (1 + Settings.GeneralDiscountRate[r])^(y - Sets.Year[1])
+                push!(df_endo_emission, (; Region=r, Emission=e, Year=y, Value=value))
+                tmp_val += value
+            end
+            push!(df_endo_emission, (; Region="Total", Emission=e, Year=y, Value=tmp_val/length(Sets.Region_full)))
         end
-        push!(df_endo_emission, (; Region="Total", Emission=e, Year=y, Value=tmp_val/length(Sets.Region_full)))
+        dict_col_value = Dict(:Sector=>"Regional Endogenous CO2 Price", :Type=>"Regional Endogenous CO2 Price",
+                                :PathwayScenario=>"$(Switch.emissionPathway)_$(Switch.emissionScenario)", :Technology=>"Regional Endogenous CO2 Price")
+        merge_df!(df_endo_emission, dict_col_value, output_emissions, colnames)
     end
-    dict_col_value = Dict(:Sector=>"Regional Endogenous CO2 Price", :Type=>"Regional Endogenous CO2 Price",
-                            :PathwayScenario=>"$(Switch.emissionPathway)_$(Switch.emissionScenario)", :Technology=>"Regional Endogenous CO2 Price")
-    merge_df!(df_endo_emission, dict_col_value, output_emissions, colnames)
 
     ### parameter output_model(*,*,*,*)
     colnames = [:Type, :PathwayScenario, :Pathway, :Scenario, :Value]
@@ -721,7 +723,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     for f ∈ Sets.Fuel for y ∈ Sets.Year
         tmp[y,f] = sum(fed[y,f,r,se] for r ∈ Sets.Region_full for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ Sets.Region_full)
         if !isempty(EU27)
-            tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27)
+            tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27) 
         else
             tmp2[y,f] = 0
         end
@@ -768,7 +770,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                 input_fuels = [ff for t in techs for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t]
                 modes = [m for t in techs for m in Maps.Tech_MO[t]]
                 input_sum = !isempty(input_fuels) && !isempty(modes) ? sum(Params.InputActivityRatio[r,t,f2,m,y] for t in techs for f2 in input_fuels if tt == t for m in modes) : 0.0
-
+                
                 if input_sum == 0
                     valid_techs = [t for t in techs if isempty([m for m in Maps.Tech_MO[t]]) || sum(Params.InputActivityRatio[r,t,f2,m,y] for f2 in [ff for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t] for m in Maps.Tech_MO[t]; init=0.0) == 0]
                     pe[y,f,r] = !isempty(valid_techs) ? sum(value(Vars.ProductionByTechnologyAnnual[y,t,f,r]) for t ∈ valid_techs)/3.6 : 0.0

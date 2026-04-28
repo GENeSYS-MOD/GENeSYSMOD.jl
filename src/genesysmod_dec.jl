@@ -81,6 +81,7 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     StorageLevelTSStart = @variable(model, StorageLevelTSStart[𝓢,𝓨,𝓛,𝓡] >= 0, container=DenseArray)
     AccumulatedNewStorageCapacity = @variable(model, AccumulatedNewStorageCapacity[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
     NewStorageCapacity = @variable(model, NewStorageCapacity[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
+    TotalStorageCapacityAnnual = @variable(model, TotalStorageCapacityAnnual[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
     CapitalInvestmentStorage = @variable(model, CapitalInvestmentStorage[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
     DiscountedCapitalInvestmentStorage = @variable(model, DiscountedCapitalInvestmentStorage[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
     SalvageValueStorage = @variable(model, SalvageValueStorage[𝓢,𝓨,𝓡] >= 0, container=DenseArray)
@@ -156,9 +157,7 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
 
     DemandSplitByModalType = @variable(model, DemandSplitByModalType[𝓜𝓽,𝓛,𝓡,Params.Tags.TagFuelToSubsets["TransportFuels"],𝓨] >= 0, container=DenseArray)
     ProductionSplitByModalType = @variable(model, ProductionSplitByModalType[𝓜𝓽,𝓛,𝓡,Params.Tags.TagFuelToSubsets["TransportFuels"],𝓨] >= 0, container=DenseArray)
-
     if Switch.switch_ramping == 1
-
         ######## Ramping #############
         ProductionUpChangeInTimeslice = @variable(model, ProductionUpChangeInTimeslice[y=𝓨, l=𝓛, f=𝓕, t=𝓣, r=𝓡; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
         ProductionDownChangeInTimeslice = @variable(model, ProductionDownChangeInTimeslice[y=𝓨, l=𝓛, f=𝓕, t=𝓣, r=𝓡; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
@@ -198,7 +197,7 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
     AnnualFixedOperatingCost,VariableOperatingCost,TotalDiscountedCost,TotalDiscountedCostByTechnology,
     AnnualCurtailmentCost,DiscountedAnnualCurtailmentCost,
     StorageLevelYearStart,StorageLevelYearFinish,StorageLevelTSStart,AccumulatedNewStorageCapacity,NewStorageCapacity,
-    CapitalInvestmentStorage,DiscountedCapitalInvestmentStorage,SalvageValueStorage,
+    TotalStorageCapacityAnnual,CapitalInvestmentStorage,DiscountedCapitalInvestmentStorage,SalvageValueStorage,
     DiscountedSalvageValueStorage,TotalDiscountedStorageCost,TotalActivityInReserveMargin,
     DemandNeedingReserveMargin,TotalREProductionAnnual,
     TotalTechnologyModelPeriodActivity,RETargetMin,AnnualTechnologyEmissionByMode,

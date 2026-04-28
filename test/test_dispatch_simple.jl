@@ -26,7 +26,8 @@ switch_raw_results = CSVResult(),
 switch_processed_results = 1,
 switch_dispatch = OneNodeSimple("DE"),
 model_region="europe",
-dispatch_week=1
+dispatch_week=1,
+solver_log=false
 );
 
 @test termination_status(model) == MOI.OPTIMAL

@@ -64,7 +64,7 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     # ####### Dummy-Technologies [enable for test purposes, if model runs infeasible] #############
     #
 
-    update_inftechs_params!(Params, Switch.switch_infeasibility_tech, Switch.switch_dispatch)
+    update_inftechs_params!(Params, Sets, Switch.switch_infeasibility_tech, Switch.switch_dispatch)
 
     return Sets, Params, emp_Sets
 end
@@ -121,7 +121,7 @@ function read_sets(in_data, Switch, s_infeas, s_dispatch; dispatch_week=nothing)
     ModalType = DataFrame(XLSX.gettable(in_data["Sets"],"G";first_row=1))[!,"ModalType"]
     Sector = DataFrame(XLSX.gettable(in_data["Sets"],"H";first_row=1))[!,"Sector"]
 
-    add_extras_sets!(in_data, Technology, Storage, s_infeas, s_dispatch)
+    add_extras_sets!(in_data, Technology, Storage, Fuel, s_infeas, s_dispatch)
     add_dummy_region!(Region_full, s_dispatch)
     if !isnothing(dispatch_week) && dispatch_week > 0 && dispatch_week <= 52
         Timeslice = [(dispatch_week-1)*168+i for i in 1:168]
@@ -135,19 +135,21 @@ function read_sets(in_data, Switch, s_infeas, s_dispatch; dispatch_week=nothing)
     return sets
 end
 
-function add_extras_sets!(in_data, Technology, Storage, s_infeas, s_dispatch)
+function add_extras_sets!(in_data, Technology, Storage, Fuel, s_infeas, s_dispatch)
 end
 
-function add_extras_sets!(in_data, Technology, Storage, s_infeas::WithInfeasibilityTechs, s_dispatch)
+function add_extras_sets!(in_data, Technology, Storage, Fuel, s_infeas::WithInfeasibilityTechs, s_dispatch)
     TagFuelToSubsets = read_subsets(in_data, "Par_TagFuelToSubsets")
     end_uses = union(["Power"], TagFuelToSubsets["HeatFuels"], TagFuelToSubsets["TransportFuels"])
     append!(Technology, ["Infeasibility_$(end_use)" for end_use in end_uses])
 end
 
-function add_extras_sets!(in_data, Technology, Storage, s_infeas::WithInfeasibilityTechs, s_dispatch::OneNodeStorage)
-    add_extras_sets!(in_data, Technology, Storage, s_infeas, NoDispatch())
-    append!(Technology, ["D_Trade_Storage_Power"])
-    push!(Storage,"S_Trade_Storage_Power")
+function add_extras_sets!(in_data, Technology, Storage, Fuel, s_infeas::WithInfeasibilityTechs, s_dispatch::OneNodeStorage)
+    add_extras_sets!(in_data, Technology, Storage, Fuel, s_infeas, NoDispatch())
+    for f in Fuel
+        append!(Technology, ["D_Trade_Storage_$f"])
+        push!(Storage,"S_Trade_Storage_$f")
+    end
 end
 
 function add_dummy_region!(Region_full, s_dispatch)
@@ -206,14 +208,16 @@ end
 
 function add_extras_tags!(in_data, tags::Tags, sets, s_infeas::WithInfeasibilityTechs, s_dispatch::OneNodeStorage)
     add_extras_tags!(in_data, tags, sets, s_infeas, NoDispatch())
-    push!(tags.TagTechnologyToSubsets["DummyTechnology"], "D_Trade_Storage_Power")
-    push!(tags.TagTechnologyToSubsets["StorageDummies"], "D_Trade_Storage_Power")
+    for f in sets.Fuel
+        push!(tags.TagTechnologyToSubsets["DummyTechnology"], "D_Trade_Storage_$f")
+        push!(tags.TagTechnologyToSubsets["StorageDummies"], "D_Trade_Storage_$f")
+    end
 end
 
-function update_inftechs_params!(Params, s_infeas, s_dispatch)
+function update_inftechs_params!(Params, Sets, s_infeas, s_dispatch)
 end
 
-function update_inftechs_params!(Params, s_infeas::WithInfeasibilityTechs, s_dispatch)
+function update_inftechs_params!(Params, Sets, s_infeas::WithInfeasibilityTechs, s_dispatch)
     Params.Tags.TagTechnologyToSector[Params.Tags.TagTechnologyToSubsets["DummyTechnology"],"Infeasibility"] .= 1
     Params.AvailabilityFactor[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 0
 
@@ -222,7 +226,7 @@ function update_inftechs_params!(Params, s_infeas::WithInfeasibilityTechs, s_dis
         Params.OutputActivityRatio[:,"Infeasibility_$(end_use)",end_use,1,:] .= 1
     end
 
-    Params.CapacityToActivityUnit[Params.Tags.TagTechnologyToSubsets["DummyTechnology"]] .= 31.56
+    Params.CapacityToActivityUnit[Params.Tags.TagTechnologyToSubsets["DummyTechnology"]] .= 31.536
     Params.TotalAnnualMaxCapacity[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999999
     Params.FixedCost[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999
     Params.CapitalCost[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999
@@ -241,19 +245,38 @@ function update_inftechs_params!(Params, s_infeas::WithInfeasibilityTechs, s_dis
     Params.Tags.TagTechnologyToModalType["Infeasibility_Mobility_Freight",1,"MT_FRT_SHIP"] .= 1
 end
 
-function update_inftechs_params!(Params, s_infeas::WithInfeasibilityTechs, s_dispatch::OneNodeStorage)
-    update_inftechs_params!(Params, s_infeas, NoDispatch())
+function update_inftechs_params!(Params, Sets, s_infeas::WithInfeasibilityTechs, s_dispatch::OneNodeStorage)
+    update_inftechs_params!(Params, Sets, s_infeas, NoDispatch())
 
-    Params.OutputActivityRatio[:,"D_Trade_Storage_Power","Power",2,:] .= 1
-    Params.InputActivityRatio[:,"D_Trade_Storage_Power","Power",1,:] .= 1
-    Params.FixedCost[:,"D_Trade_Storage_Power",:] .= 0.0001
-    Params.CapitalCost[:,"D_Trade_Storage_Power",:] .= 0.0001
-    Params.VariableCost[:,"D_Trade_Storage_Power",:,:] .= 0.0001
-    Params.CapitalCostStorage[:,"S_Trade_Storage_Power",:] .= 0.0001
-    Params.TechnologyToStorage["D_Trade_Storage_Power", "S_Trade_Storage_Power", 1, :] .= 0.95
-    Params.TechnologyFromStorage["D_Trade_Storage_Power", "S_Trade_Storage_Power", 2, :] .= 0.95
-    Params.OperationalLifeStorage["S_Trade_Storage_Power"] .= 100
-    Params.AnnualMaxNewCapacity[:,"D_Trade_Storage_Power",:] .= 99999
+    for f in Sets.Fuel
+        if Params.Tags.TagCanFuelBeTraded[f] != 0
+            Params.CapacityToActivityUnit["D_Trade_Storage_$f"] .= 31.536
+            Params.OutputActivityRatio[:,"D_Trade_Storage_$f",f,2,:] .= 1
+            Params.InputActivityRatio[:,"D_Trade_Storage_$f",f,1,:] .= 1
+            Params.FixedCost[:,"D_Trade_Storage_$f",:] .= 0.0001
+            Params.CapitalCost[:,"D_Trade_Storage_$f",:] .= 0.0001
+            Params.VariableCost[:,"D_Trade_Storage_$f",:,:] .= 0.0001
+            Params.CapitalCostStorage[:,"S_Trade_Storage_$f",:] .= 0.0001
+            Params.TechnologyToStorage["D_Trade_Storage_$f", "S_Trade_Storage_$f", 1, :] .= 1.0
+            Params.TechnologyFromStorage["D_Trade_Storage_$f", "S_Trade_Storage_$f", 2, :] .= 1.0
+            Params.OperationalLifeStorage["S_Trade_Storage_$f"] .= 100
+            Params.OperationalLife["D_Trade_Storage_$f"] .= 100
+            Params.AnnualMaxNewCapacity[:,"D_Trade_Storage_$f",:] .= 99999
+        else
+            Params.OutputActivityRatio[:,"D_Trade_Storage_$f",f,2,:] .= 1
+            Params.InputActivityRatio[:,"D_Trade_Storage_$f",f,1,:] .= 1
+            Params.FixedCost[:,"D_Trade_Storage_$f",:] .= 0.0001
+            Params.CapitalCost[:,"D_Trade_Storage_$f",:] .= 0.0001
+            Params.VariableCost[:,"D_Trade_Storage_$f",:,:] .= 0.0001
+            Params.CapitalCostStorage[:,"S_Trade_Storage_$f",:] .= 0.0001
+            Params.TechnologyToStorage["D_Trade_Storage_$f", "S_Trade_Storage_$f", 1, :] .= 0.01
+            Params.TechnologyFromStorage["D_Trade_Storage_$f", "S_Trade_Storage_$f", 2, :] .= 0.01
+            Params.OperationalLifeStorage["S_Trade_Storage_$f"] .= 0
+            Params.OperationalLife["D_Trade_Storage_$f"] .= 0
+            Params.AnnualMaxNewCapacity[:,"D_Trade_Storage_$f",:] .= 0
+        end
+    end
+    Params.Tags.TagTechnologyToSubsets["TradeStorageDummies"] = ["D_Trade_Storage_$f" for f in Sets.Fuel]
 end
 
 function read_params(in_data, Sets, Switch, Tags)
@@ -716,7 +739,7 @@ function aggregate_params(Switch, Sets_full, Params_full, s_dispatch::TwoNodes)
     # ####### Dummy-Technologies [enable for test purposes, if model runs infeasible] #############
     #
 
-    update_inftechs_params!(Params, Switch.switch_infeasibility_tech, Switch.switch_dispatch)
+    update_inftechs_params!(Params, Sets, Switch.switch_infeasibility_tech, Switch.switch_dispatch)
     return sets, Params, 𝓡_full, Params_full
 end
 

@@ -72,8 +72,8 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
     #
 
     if Switch.switch_infeasibility_tech == 1
-        Params.Tags.TagTechnologyToSector[Params.Tags.TagTechnologyToSubsets["DummyTechnology"],"Infeasibility"] .= 1
-        Params.AvailabilityFactor[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 0
+        subset = setdiff(Params.Tags.TagTechnologyToSubsets["DummyTechnology"],Params.Tags.TagTechnologyToSubsets["TradeStorageDummies"])
+        Params.Tags.TagTechnologyToSector[subset,"Infeasibility"] .= 1
 
         #output_activity_dict = Dict(
         #    "Infeasibility_HLI" => "Heat_Low_Industrial",
@@ -97,16 +97,16 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         for end_use ∈ end_uses
             Params.OutputActivityRatio[:,"Infeasibility_$(end_use)",end_use,1,:] .= 1
         end
-
-        Params.CapacityToActivityUnit[Params.Tags.TagTechnologyToSubsets["DummyTechnology"]] .= 31.56
-        Params.TotalAnnualMaxCapacity[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999999
-        Params.FixedCost[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999
-        Params.CapitalCost[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 999
-        Params.VariableCost[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:,:] .= 999
-        Params.AvailabilityFactor[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:] .= 1
-        Params.CapacityFactor[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:,:] .= 1
-        Params.OperationalLife[Params.Tags.TagTechnologyToSubsets["DummyTechnology"]] .= 1
-        Params.EmissionActivityRatio[:,Params.Tags.TagTechnologyToSubsets["DummyTechnology"],:,:,:] .= 0
+        
+        Params.CapacityToActivityUnit[subset] .= 31.536
+        Params.TotalAnnualMaxCapacity[:,subset,:] .= 999999
+        Params.FixedCost[:,subset,:] .= 999
+        Params.CapitalCost[:,subset,:] .= 999
+        Params.VariableCost[:,subset,:,:] .= 999
+        Params.AvailabilityFactor[:,subset,:] .= 1
+        Params.CapacityFactor[:,subset,:,:] .= 1
+        Params.OperationalLife[subset] .= 1
+        Params.EmissionActivityRatio[:,subset,:,:,:] .= 0
 
     end
 

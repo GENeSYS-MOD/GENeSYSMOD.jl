@@ -27,7 +27,9 @@ switch_raw_results = TXTResult("result_test"),
 switch_processed_results = 1,
 switch_dispatch = OneNodeStorage("DE"),
 model_region="europe",
-dispatch_week=1
+dispatch_week=1,
+solver_log=false,
+solver_attr=Dict("solver" => "simplex")
 );
 
 @test termination_status(model) == MOI.OPTIMAL
