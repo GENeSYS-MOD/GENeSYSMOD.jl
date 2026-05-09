@@ -19,7 +19,9 @@ end
 
 function resourcecosts_from_duals(model, Sets, Switch, Settings, extr_str)
     df_duals = genesysmod_getdualsbyname(model,Switch,extr_str, "EB2_EnergyBalanceEachTS")
+    df_duals_time_indpendent = genesysmod_getdualsbyname(model,Switch,extr_str, "EB3_EnergyBalanceEachYear")
 
+    # process time dependant fuels
     cols = [:constraint_type, :year, :timestep, :fuel, :region]
     transform!(df_duals, :names => ByRow(x -> split(x, '|')) => cols)
 
@@ -29,6 +31,18 @@ function resourcecosts_from_duals(model, Sets, Switch, Settings, extr_str)
 
     df_duals.year = parse.(Int64,df_duals.year)
 
+    #process time independant fuels
+    cols = [:constraint_type, :year, :fuel, :region]
+    transform!(df_duals_time_indpendent, :names => ByRow(x -> split(x, '|')) => cols)
+    rename!(df_duals_time_indpendent, :values => :y)
+
+    select!(df_duals_time_indpendent, Not(:names,:constraint_type))
+    select!(df_duals_time_indpendent, [:region, :fuel, :year, :y])
+
+    df_duals_time_indpendent.year = parse.(Int64,df_duals_time_indpendent.year)
+
+    #merge dfs then return DAA
+    df_duals = vcat(df_duals, df_duals_time_indpendent)
     resourcecosts = create_daa(df_duals,"", Sets.Region_full, Sets.Fuel,  Sets.Year)
     return resourcecosts
 end
@@ -723,7 +737,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     for f ∈ Sets.Fuel for y ∈ Sets.Year
         tmp[y,f] = sum(fed[y,f,r,se] for r ∈ Sets.Region_full for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ Sets.Region_full)
         if !isempty(EU27)
-            tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27) 
+            tmp2[y,f] = sum(fed[y,f,r,se] for r ∈ EU27 for se ∈ Sets.Sector) + sum(Params.SpecifiedAnnualDemand[r,"Power",y]/3.6 for r ∈ EU27)
         else
             tmp2[y,f] = 0
         end
@@ -770,7 +784,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                 input_fuels = [ff for t in techs for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t]
                 modes = [m for t in techs for m in Maps.Tech_MO[t]]
                 input_sum = !isempty(input_fuels) && !isempty(modes) ? sum(Params.InputActivityRatio[r,t,f2,m,y] for t in techs for f2 in input_fuels if tt == t for m in modes) : 0.0
-                
+
                 if input_sum == 0
                     valid_techs = [t for t in techs if isempty([m for m in Maps.Tech_MO[t]]) || sum(Params.InputActivityRatio[r,t,f2,m,y] for f2 in [ff for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t] for m in Maps.Tech_MO[t]; init=0.0) == 0]
                     pe[y,f,r] = !isempty(valid_techs) ? sum(value(Vars.ProductionByTechnologyAnnual[y,t,f,r]) for t ∈ valid_techs)/3.6 : 0.0
