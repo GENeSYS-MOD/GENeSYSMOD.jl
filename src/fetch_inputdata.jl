@@ -30,33 +30,40 @@ function update_and_process_data(;settings_file = nothing, scenario_option = "Eu
      datadir = nothing, resultdir = nothing, output_format = "long", processing_option = "both", debugging_output = false, data_base_region = "DE")
     # Pull latest changes
     if isnothing(datadir)
+        println("No path to data directory given, using default: ",joinpath(@__DIR__, "..", "GENeSYS_MOD.data"))
         start_dir = pwd()
-        repo_dir = joinpath(@__DIR__,"..","..","GENeSYS_MOD.data")
-        cd(repo_dir)
-        println("Using present data directory")
+        repo_dir = joinpath(@__DIR__, "..", "GENeSYS_MOD.data")
+        mkpath(repo_dir)
     else
+        println("Path to data directory: ",datadir)
         start_dir = datadir
         repo_dir = start_dir
-        cd(start_dir)
-        println("Using data directory: $datadir")
     end
-
-    repo = LibGit2.GitRepo(repo_dir)
-    println("Fetch Successful")
-    LibGit2.fetch(repo)
-    limit = 3
-    for i in 1:limit
-        try
-            LibGit2.merge!(repo)
-            println("Merge Successful")
-            break
-        catch e
-            if i != limit
-                println("Retrying... ($i/$limit)")
-                sleep(3)
-            else
-                println(e)
-                println("Merge Failed! Continuing without merging.")
+    
+    cd(repo_dir)
+    
+    if !isdir(joinpath(repo_dir, ".git"))
+        println("Data repo not found — cloning from GitHub...")
+        LibGit2.clone("https://github.com/GENeSYS-MOD/GENeSYS_MOD.data", repo_dir)
+        println("Clone successful")
+    else
+        repo = LibGit2.GitRepo(repo_dir)
+        LibGit2.fetch(repo)
+        println("Fetch successful")
+        limit = 3
+        for i in 1:limit
+            try
+                LibGit2.merge!(repo)
+                println("Merge successful")
+                break
+            catch e
+                if i != limit
+                    println("Retrying... ($i/$limit)")
+                    sleep(3)
+                else
+                    println(e)
+                    println("Merge failed! Continuing without merging.")
+                end
             end
         end
     end

@@ -6,7 +6,13 @@ using Ipopt
 
 solver = HiGHS.Optimizer
 
+#const TEST_RESULTS_DIR = joinpath(pkgdir(GENeSYSMOD),"test","TestData","Results")
+# path to the outputs of the tests
 const TEST_RESULTS_DIR = joinpath(pkgdir(GENeSYSMOD),"test","TestData","Results")
+# path to the GENeSYS-MOD.data repository (if not already specified in the GENESYSMOD_DATADIR environment variable)
+# if you have this already cloned, add the path (e.g. joinpath(pkgdir(GENeSYSMOD),"test","TestData","Results") )
+# if left blank, it will clone the GENeSYS-MOD.data repository to the main folder of GENeSYSMOD.jl
+const DATA_REPO_DIR = nothing
 
 @testset "GENeSYS-MOD" begin
     @testset "Investment Run" begin
