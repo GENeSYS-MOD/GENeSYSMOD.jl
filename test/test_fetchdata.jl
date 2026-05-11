@@ -5,7 +5,7 @@ using CondaPkg
 if haskey(ENV, "GENESYSMOD_DATADIR")
     datadir = ENV["GENESYSMOD_DATADIR"]
 else
-    datadir = nothing
+    datadir = DATA_REPO_DIR
 end
 
 @testset "Fetch Specific Data Release" begin

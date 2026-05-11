@@ -30,10 +30,12 @@ function update_and_process_data(;settings_file = nothing, scenario_option = "Eu
      datadir = nothing, resultdir = nothing, output_format = "long", processing_option = "both", debugging_output = false, data_base_region = "DE")
     # Pull latest changes
     if isnothing(datadir)
+        println("No path to data directory given, using default: ",joinpath(@__DIR__, "..", "GENeSYS_MOD.data"))
         start_dir = pwd()
-        repo_dir = joinpath(@__DIR__, "..", "test","GENeSYS_MOD.data")
+        repo_dir = joinpath(@__DIR__, "..", "GENeSYS_MOD.data")
         mkpath(repo_dir)
     else
+        println("Path to data directory: ",datadir)
         start_dir = datadir
         repo_dir = start_dir
     end
