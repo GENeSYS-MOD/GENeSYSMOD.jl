@@ -1,9 +1,13 @@
 Release Notes
 =============
 
-## Unreleased
+## Unregistered
+- Fix calculation of resource costs when using duals (not using LCOE_calc switch) for fuels that are time independant
+
+## v4.1.0
 - Various fixes to Dispatch
 - Possibility to pass argeument to solver through a dictionary in solver_attr and to activate logging via solver_log
+- change of julia minimun requirements
 
 ## v4.1.1
 - Fixed an issue with the testing scripts when installing via package 
