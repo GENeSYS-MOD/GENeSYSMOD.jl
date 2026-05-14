@@ -23,13 +23,9 @@ function convert_jump_container_to_df(var::JuMP.Containers.DenseAxisArray;
     var_val  = value.(var)
 
     if sum(var_val) != 0
-        # With a product over all axis sets of size M, form an Mx1 Array of all indices to the JuMP container `var`
-        indices = collect(Base.Iterators.product(var.axes...))
-        data = [NamedTuple{tup_dim}(ind) for ind in indices if var_val[ind...] != 0]
-        values = [var_val[ind...] for ind in indices if var_val[ind...] != 0]
-
-        df = DataFrame(data)
-        df[!, value_col] = values
+        pairs_nz = [(ind, var_val[ind...]) for ind in Base.Iterators.product(var.axes...) if var_val[ind...] != 0]
+        df = DataFrame([NamedTuple{tup_dim}(p[1]) for p in pairs_nz])
+        df[!, value_col] = [p[2] for p in pairs_nz]
     else
         push!(dim_names, :Value)
         df = DataFrame([[] for i in dim_names],dim_names)
@@ -57,14 +53,11 @@ function convert_jump_container_to_df(var::JuMP.Containers.SparseAxisArray;
     tup_dim = (dim_names...,)
     var_val = value.(var)
 
-    # Only use stored keys in SparseAxisArray
     keys = eachindex(var)
     if !isempty(keys)
-        data = [NamedTuple{tup_dim}(ind) for ind in keys if var_val[ind...] != 0]
-        values = [var_val[ind...] for ind in keys if var_val[ind...] != 0]
-
-        df = DataFrame(data)
-        df[!, value_col] = values
+        pairs_nz = [(ind, var_val[ind...]) for ind in keys if var_val[ind...] != 0]
+        df = DataFrame([NamedTuple{tup_dim}(p[1]) for p in pairs_nz])
+        df[!, value_col] = [p[2] for p in pairs_nz]
     else
         push!(dim_names, :Value)
         df = DataFrame([[] for i in dim_names], dim_names)
@@ -96,19 +89,27 @@ function create_daa(in_data::XLSX.XLSXFile, tab_name, els...;inherit_base_world=
     end
     # Fill other values using base region
     if inherit_base_world
-        for x in Base.Iterators.product(els...)
+        other_regions = filter(r -> r != base_region && r != "World", collect(els[1]))
+        for x in Base.Iterators.product(other_regions, els[2:end]...)
             if A[x...] == 0.0
-                if A[base_region, x[2:end]...] != 0.0
-                    A[x...] = A[base_region, x[2:end]...]
-                elseif A["World", x[2:end]...] != 0.0
-                    A[x...] = A["World", x[2:end]...]
+                base_val = A[base_region, x[2:end]...]
+                if base_val != 0.0
+                    A[x...] = base_val
+                else
+                    world_val = A["World", x[2:end]...]
+                    if world_val != 0.0
+                        A[x...] = world_val
+                    end
                 end
             end
         end
     end
     if copy_world
-        for x in Base.Iterators.product(els...)
-            A[x...] = A["World", x[2:end]...]
+        for x in Base.Iterators.product(els[2:end]...)
+            world_val = A["World", x...]
+            for r in els[1]
+                A[r, x...] = world_val
+            end
         end
     end
     #if tab_name == "Par_CapacityToActivityUnit"
@@ -123,11 +124,10 @@ function create_daa(in_data::XLSX.XLSXFile, tab_name, els...;inherit_base_world=
         #end
     #end
     if tab_name == "Par_EmissionsPenalty"
-        for x in Base.Iterators.product(els...)
-            if A[base_region, x[2:end]...] != 0.0
-                A[x...] = A[base_region, x[2:end]...]
-            else
-                A[x...] = 0.0
+        for x in Base.Iterators.product(els[2:end]...)
+            base_val = A[base_region, x...]
+            for r in els[1]
+                A[r, x...] = base_val
             end
         end
     end
@@ -195,19 +195,27 @@ function create_daa_init(in_data, tab_name,init_value=0, els...;inherit_base_wor
     end
     # Fill other values using base region
     if inherit_base_world
-        for x in Base.Iterators.product(els...)
+        other_regions = filter(r -> r != base_region && r != "World", collect(els[1]))
+        for x in Base.Iterators.product(other_regions, els[2:end]...)
             if A[x...] == init_value
-                if A[base_region, x[2:end]...] != init_value
-                    A[x...] = A[base_region, x[2:end]...]
-                elseif A["World", x[2:end]...] != init_value
-                    A[x...] = A["World", x[2:end]...]
+                base_val = A[base_region, x[2:end]...]
+                if base_val != init_value
+                    A[x...] = base_val
+                else
+                    world_val = A["World", x[2:end]...]
+                    if world_val != init_value
+                        A[x...] = world_val
+                    end
                 end
             end
         end
     end
     if copy_world
-        for x in Base.Iterators.product(els...)
-            A[x...] = A["World", x[2:end]...]
+        for x in Base.Iterators.product(els[2:end]...)
+            world_val = A["World", x...]
+            for r in els[1]
+                A[r, x...] = world_val
+            end
         end
     end
     #if tab_name == "Par_CapacityToActivityUnit"
@@ -222,11 +230,10 @@ function create_daa_init(in_data, tab_name,init_value=0, els...;inherit_base_wor
         #end
     #end
     if tab_name == "Par_EmissionsPenalty"
-        for x in Base.Iterators.product(els...)
-            if A[base_region, x[2:end]...] != init_value
-                A[x...] = A[base_region, x[2:end]...]
-            else
-                A[x...] = init_value
+        for x in Base.Iterators.product(els[2:end]...)
+            base_val = A[base_region, x...]
+            for r in els[1]
+                A[r, x...] = base_val
             end
         end
     end
