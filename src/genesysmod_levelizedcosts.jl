@@ -74,7 +74,7 @@ function genesysmod_levelizedcosts(model,Sets, Params, VarPar, Vars, Switch, Set
     AnnualProduction = VarPar.ProductionAnnual
     AnnualTechnologyProduction = value.(model[:ProductionByTechnologyAnnual])
     for r ∈ Sets.Region_full for t ∈ Sets.Technology for m ∈ Sets.Mode_of_operation for f ∈ Sets.Fuel for y ∈ Sets.Year
-        AnnualTechnologyProductionByMode[r,t,m,f,y] = sum(VarPar.RateOfProductionByTechnologyByMode[y,l,t,m,f,r]*Params.YearSplit[l,y] for l ∈ Sets.Timeslice)
+        AnnualTechnologyProductionByMode[r,t,m,f,y] = sum(get(VarPar.RateOfProductionByTechnologyByMode,(y,l,t,m,f,r),0.0)*Params.YearSplit[l,y] for l ∈ Sets.Timeslice)
     end end end end end
     TechnologyEmissions = value.(model[:AnnualTechnologyEmission])
     AnnualSectorEmissions = value.(model[:AnnualSectoralEmissions])

@@ -39,7 +39,9 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     # ####### Load from hourly Data #############
     #
 
+    _tts = Dates.now()
     GENeSYSMOD.timeseries_reduction!(Params, Sets, Switch)
+    println("Build:   timeseries_reduction : ", Dates.now()-_tts)
 
     for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
         Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))

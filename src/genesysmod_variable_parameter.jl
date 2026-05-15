@@ -4,8 +4,9 @@ Internal function used in the run process after solving to compute aggregated ve
 """
 function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
     RateOfTotalActivity = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Region_full)
-    RateOfProductionByTechnologyByMode = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Mode_of_operation), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Mode_of_operation, Sets.Fuel, Sets.Region_full)
-    RateOfUseByTechnologyByMode = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Mode_of_operation), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Mode_of_operation, Sets.Fuel, Sets.Region_full)
+    # Sparse: 6D ByMode rates are mostly zero - store only nonzero entries keyed (y,l,t,m,f,r)
+    RateOfProductionByTechnologyByMode = Dict{Tuple,Float64}()
+    RateOfUseByTechnologyByMode = Dict{Tuple,Float64}()
     RateOfProductionByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
     RateOfUseByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
     ProductionByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
@@ -53,14 +54,18 @@ function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
             for f ∈ Sets.Fuel
                 for (t,m) ∈ LoopSetOutput[(r,f,y)]
                     prod = roa[y,l,t,m,r]*Params.OutputActivityRatio[r,t,f,m,y]
-                    RateOfProductionByTechnologyByMode[y,l,t,m,f,r] = prod
+                    if prod != 0
+                        RateOfProductionByTechnologyByMode[(y,l,t,m,f,r)] = prod
+                    end
                     RateOfProductionByTechnology[y,l,t,f,r] += prod
                     ProductionByTechnology[y,l,t,f,r] += prod * Params.YearSplit[l,y]
                     CurtailedEnergy[y,f,r,l] += curt[r,l,t,y] * Params.OutputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y] * Params.CapacityToActivityUnit[t]
                 end
                 for (t,m) ∈ LoopSetInput[(r,f,y)]
                     use_rate = roa[y,l,t,m,r]*Params.InputActivityRatio[r,t,f,m,y]*Params.TimeDepEfficiency[r,t,l,y]
-                    RateOfUseByTechnologyByMode[y,l,t,m,f,r] = use_rate
+                    if use_rate != 0
+                        RateOfUseByTechnologyByMode[(y,l,t,m,f,r)] = use_rate
+                    end
                     RateOfUseByTechnology[y,l,t,f,r] += use_rate
                     UseByTechnology[y,l,t,f,r] += use_rate * Params.YearSplit[l,y]
                 end

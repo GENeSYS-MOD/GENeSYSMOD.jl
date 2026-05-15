@@ -78,6 +78,11 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
       push!(get!(pairs_by_fuel, f_r, Tuple{String,String}[]), (r1,r2))
       push!(get!(fuel_rr_by_r1, r1, Tuple{String,String}[]), (f_r,r2))
   end
+  # (tech,mode) pairs that can charge / discharge each storage (region-free, nonzero in some year)
+  charge_tm    = Dict(s => [(t,m) for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t]
+                            if any(Params.TechnologyToStorage[t,s,m,y]   != 0 for y ∈ 𝓨)] for s ∈ 𝓢)
+  discharge_tm = Dict(s => [(t,m) for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t]
+                            if any(Params.TechnologyFromStorage[t,s,m,y] != 0 for y ∈ 𝓨)] for s ∈ 𝓢)
 
   function CanFuelBeUsedByModeByTech(y, f, r,t,m)
     temp = Params.InputActivityRatio[r,t,f,m,y]*
@@ -345,9 +350,17 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end
   end
 
-  for y ∈ 𝓨 for t ∈ 𝓣 for  r ∈ 𝓡 for l ∈ 𝓛
-    @constraint(model, Vars.TotalCapacityAnnual[y,t,r] >= Vars.CurtailedCapacity[r,l,t,y], base_name="CA3c_CurtailedCapacity|$(r)|$(l)|$(t)|$(y)")
-  end end end end
+  for y ∈ 𝓨 for t ∈ 𝓣 for  r ∈ 𝓡
+    if CanBuildTechnology[y,t,r] > 0
+      for l ∈ 𝓛
+        @constraint(model, Vars.TotalCapacityAnnual[y,t,r] >= Vars.CurtailedCapacity[r,l,t,y], base_name="CA3c_CurtailedCapacity|$(r)|$(l)|$(t)|$(y)")
+      end
+    else
+      for l ∈ 𝓛
+        JuMP.fix(Vars.CurtailedCapacity[r,l,t,y], 0; force=true)
+      end
+    end
+  end end end
   print("Cstr: Cap Adequacy A3 : ",Dates.now()-start,"\n")
 
 
@@ -1007,8 +1020,8 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
   for r ∈ 𝓡 for s ∈ 𝓢 for i ∈ eachindex(𝓨)
     @constraint(model,
-    sum((sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for t ∈ StorageDummies_techs  for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]>0)
-              - sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t] if Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0)) for l ∈ 𝓛)
+    sum((sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for (t,m) ∈ charge_tm[s] if Params.TechnologyToStorage[t,s,m,𝓨[i]]>0)
+              - sum(Vars.RateOfActivity[𝓨[i],l,t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] * Params.YearSplit[l,𝓨[i]] for (t,m) ∈ discharge_tm[s] if Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0)) for l ∈ 𝓛)
               - sum((s == "S_Trade_Storage_$f" && Switch.switch_dispatch isa OneNodeStorage ? storage_ratio[𝓨[i],f,r] : 0) for f ∈ 𝓕 if Params.Tags.TagCanFuelBeTraded[f] != 0) == 0,
               base_name="S3_StorageRefilling|$(r)|$(s)|$(𝓨[i])")
 
@@ -1018,8 +1031,8 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     for j ∈ eachindex(𝓛)
       @constraint(model,
       (j>1 ? Vars.StorageLevelTSStart[s,𝓨[i],𝓛[j-1],r] +
-      (sum((Params.TechnologyToStorage[t,s,m,𝓨[i]]>0 ? Vars.RateOfActivity[𝓨[i],𝓛[j-1],t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] : 0) for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t])
-        - sum((Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0 ? Vars.RateOfActivity[𝓨[i],𝓛[j-1],t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] : 0 ) for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t])) * Params.YearSplit[𝓛[j-1],𝓨[i]] : 0)
+      (sum((Params.TechnologyToStorage[t,s,m,𝓨[i]]>0 ? Vars.RateOfActivity[𝓨[i],𝓛[j-1],t,m,r] * Params.TechnologyToStorage[t,s,m,𝓨[i]] : 0) for (t,m) ∈ charge_tm[s]; init=0)
+        - sum((Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0 ? Vars.RateOfActivity[𝓨[i],𝓛[j-1],t,m,r] / Params.TechnologyFromStorage[t,s,m,𝓨[i]] : 0 ) for (t,m) ∈ discharge_tm[s]; init=0)) * Params.YearSplit[𝓛[j-1],𝓨[i]] : 0)
         + (j == 1 ? Vars.StorageLevelYearStart[s,𝓨[i],r] : 0)   == Vars.StorageLevelTSStart[s,𝓨[i],𝓛[j],r],
         base_name="S2_StorageLevelTSStart|$(r)|$(s)|$(𝓨[i])|$(𝓛[j])")
       @constraint(model,
@@ -1066,7 +1079,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         end
       end
     end
-    for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t]
+    for (t,m) ∈ discharge_tm[s]
       if Params.TechnologyFromStorage[t,s,m,𝓨[i]]>0
         for r ∈ 𝓡 for j ∈ eachindex(𝓛)
           @constraint(model,
@@ -1074,14 +1087,14 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
           base_name="S6_StorageActivityLimit|$(s)|$(t)|$(𝓨[i])|$(𝓛[j])|$(r)|$(m)")
         end end
       end
-    end end
+    end
     if Switch.switch_dispatch isa NoDispatch
         for r ∈ 𝓡
             @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] == (sum(Vars.NewStorageCapacity[s,yy,r] for yy ∈ 𝓨 if (Params.OperationalLifeStorage[s] >= 𝓨[i]-yy && 𝓨[i]-yy >= 0)) + Params.ResidualStorageCapacity[r,s,𝓨[i]]),
             base_name="S1_jl_TotalStorageCapacityAnnual|$(s)|$(𝓨[i])|$(r)")
-            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] <= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 * Switch.E2P_ratio_deviation_factor for (t,m) ∈ charge_tm[s] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7a_Add_E2PRatio_up|$(s)|$(𝓨[i])|$(r)")
-            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for t ∈ StorageDummies_techs for m ∈ Maps.Tech_MO[t] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
+            @constraint(model, Vars.TotalStorageCapacityAnnual[s,𝓨[i],r] >= sum(Vars.TotalCapacityAnnual[𝓨[i],t,r] * Params.StorageE2PRatio[s]* 0.0036 *(1/Switch.E2P_ratio_deviation_factor) for (t,m) ∈ charge_tm[s] if Params.TechnologyToStorage[t,s,m,𝓨[i]]!=0),
             base_name="S7b_Add_E2PRatio_low|$(s)|$(𝓨[i])|$(r)")
         end
     end

@@ -96,14 +96,19 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     # ####### Load data from provided excel files and declarations #############
     #
 
+    _tb = Dates.now()
     Sets, Params, Emp_Sets = genesysmod_dataload(switch);
+    println("Build: dataload : ", Dates.now()-_tb); _tb = Dates.now()
     Maps = make_mapping(Sets,Params)
+    println("Build: make_mapping : ", Dates.now()-_tb); _tb = Dates.now()
     Vars=genesysmod_dec(model,Sets,Params,switch,Maps)
+    println("Build: dec : ", Dates.now()-_tb); _tb = Dates.now()
     #
     # ####### Settings for model run (Years, Regions, etc) #############
     #
 
     Settings=genesysmod_settings(Sets, Params, switch.socialdiscountrate)
+    println("Build: settings : ", Dates.now()-_tb); _tb = Dates.now()
 
     #end
     #
@@ -111,6 +116,7 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     #
 
     genesysmod_bounds(model,Sets,Params,Vars,Settings,switch,Maps)
+    println("Build: bounds : ", Dates.now()-_tb); _tb = Dates.now()
 
     #
     # ####### load additional bounds and data for certain scenarios #############
@@ -125,12 +131,14 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     else
         @warn "No scenario data for region $(switch.model_region) found at $(scn_path)!"
     end
+    println("Build: scenariodata : ", Dates.now()-_tb); _tb = Dates.now()
 
     #
     # ####### Including Equations #############
     #
 
     considered_duals = genesysmod_equ(model,Sets,Params,Vars,Emp_Sets,Settings,switch,Maps)
+    println("Build: equ : ", Dates.now()-_tb)
 
     return model, Dict("Sets" => Sets, "Params" => Params,
      "Switch" => switch, "Vars" => Vars, "Maps" => Maps, "Settings" => Settings, "ConsideredDuals" => considered_duals)

@@ -96,9 +96,9 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     output_energy_balance_annual = DataFrame([name => [] for name in colnames2])
 
     tmp = VarPar.RateOfProductionByTechnologyByMode
-    for y ∈ Sets.Year for l ∈ Sets.Timeslice
-        tmp[y,l,:,:,:,:] = tmp[y,l,:,:,:,:] * Params.YearSplit[l,y]
-    end end
+    for k ∈ keys(tmp)            # k = (y,l,t,m,f,r)
+        tmp[k] *= Params.YearSplit[k[2],k[1]]
+    end
 
     df_energy_balance = convert_jump_container_to_df(tmp;dim_names=[:Year, :Timeslice, :Technology, :Mode_of_operation, :Fuel, :Region])
     df_energy_balance[!,:Type] .= "Production"
@@ -121,7 +121,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     end
 
     tmp_techs = [t_ for t_ ∈ Sets.Technology if Params.Tags.TagTechnologyToSector[t_,"Transportation"] >0]
-    df_tmp = convert_jump_container_to_df(tmp[:,:,tmp_techs,:,:,:];dim_names=[:Year, :Timeslice, :Technology, :Mode_of_operation, :Fuel, :Region])
+    df_tmp = df_energy_balance[in.(df_energy_balance.Technology, Ref(Set(tmp_techs))),:]
     dict_col_value = Dict(:Sector=>"Transportation", :Type=>"Production", :Unit=>"billion km",
                             :PathwayScenario=>"$(Switch.emissionPathway)_$(Switch.emissionScenario)")
 
@@ -129,9 +129,10 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     append!(output_energy_balance_annual, groupsum(df_tmp, [:Region, :Sector, :Technology, :Fuel, :Type, :Unit, :PathwayScenario, :Year]))
 
     tmp = VarPar.RateOfUseByTechnologyByMode
-    for y ∈ Sets.Year for l ∈ Sets.Timeslice
-        tmp[y,l,:,:,:,:] = (-1) * tmp[y,l,:,:,:,:] * Params.YearSplit[l,y]
-    end end
+    for k ∈ keys(tmp)            # k = (y,l,t,m,f,r)
+        tmp[k] *= -Params.YearSplit[k[2],k[1]]
+    end
+    df_use = convert_jump_container_to_df(tmp;dim_names=[:Year, :Timeslice, :Technology, :Mode_of_operation, :Fuel, :Region])
 
     dict_col_value = Dict(:Sector=>"Transportation", :Type=>"Use", :Unit=>"PJ",
     :PathwayScenario=>"$(Switch.emissionPathway)_$(Switch.emissionScenario)")
@@ -139,7 +140,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     for se ∈ Sets.Sector
         tmp_techs = [t_ for t_ ∈ Sets.Technology if Params.Tags.TagTechnologyToSector[t_,se] >0]
         if tmp_techs != []
-            df_tmp = convert_jump_container_to_df(tmp[:,:,tmp_techs,:,:,:];dim_names=[:Year, :Timeslice, :Technology, :Mode_of_operation, :Fuel, :Region])
+            df_tmp = df_use[in.(df_use.Technology, Ref(Set(tmp_techs))),:]
             setindex!(dict_col_value, se, :Sector)
             merge_df!(df_tmp, dict_col_value, output_energy_balance, colnames)
             if !isempty(df_tmp)
@@ -880,7 +881,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                         if Params.InputActivityRatio[r, t, f, m, y] != 0
                             for l in Sets.Timeslice
                                 key = (y, f, r)
-                                eg_temp[key] = get(eg_temp, key, 0.0) + value(VarPar.RateOfProductionByTechnologyByMode[y, l, t, m, "Power", r]) * Params.YearSplit[l, y] / 3.6
+                                eg_temp[key] = get(eg_temp, key, 0.0) + get(VarPar.RateOfProductionByTechnologyByMode, (y,l,t,m,"Power",r), 0.0) * Params.YearSplit[l, y] / 3.6
                             end
                         end
                     end

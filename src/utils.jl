@@ -71,6 +71,30 @@ function convert_jump_container_to_df(var::JuMP.Containers.SparseAxisArray;
 end
 
 """
+DataFrame from a sparse `Dict` whose keys are index tuples and values are the data.
+Used for the sparse 6D `RateOf*ByTechnologyByMode` containers.
+"""
+function convert_jump_container_to_df(var::Dict;
+    dim_names::Vector{Symbol}=Vector{Symbol}(),
+    value_col::Symbol=:Value)
+
+    if length(dim_names) == 0 && !isempty(var)
+        dim_names = [Symbol("dim$i") for i in 1:length(first(keys(var)))]
+    end
+
+    ks = [k for k in keys(var) if var[k] != 0]
+    if isempty(ks)
+        cn = vcat(dim_names, value_col)
+        return DataFrame([[] for _ in cn], cn)
+    end
+
+    tup_dim = (dim_names...,)
+    df = DataFrame([NamedTuple{tup_dim}(k) for k in ks])
+    df[!, value_col] = [var[k] for k in ks]
+    return df
+end
+
+"""
 Creates DenseAxisArrays containing the input parameters to the model considering hierarchy
 with base region data and world data.
 
