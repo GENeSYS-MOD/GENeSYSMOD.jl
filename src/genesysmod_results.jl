@@ -67,8 +67,8 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
         in_i_labels = axes(slice_in, 1)
         in_j_labels = axes(slice_in, 2)
         # Find positions where value > 0
-        LoopSetOutput[(r,f,y)] = [(out_i_labels[i[1]], out_j_labels[i[2]]) for i in findall(x -> x > 0, Array(slice_out))]
-        LoopSetInput[(r,f,y)]  = [(in_i_labels[i[1]],  in_j_labels[i[2]])  for i in findall(x -> x > 0, Array(slice_in))]
+        LoopSetOutput[(r,f,y)] = [(out_i_labels[i[1]], out_j_labels[i[2]]) for i in findall(>(0), slice_out.data)]
+        LoopSetInput[(r,f,y)]  = [(in_i_labels[i[1]],  in_j_labels[i[2]])  for i in findall(>(0), slice_in.data)]
     end
 
     z_fuelcosts = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Fuel),length(Sets.Year),length(Sets.Region_full)), Sets.Fuel, Sets.Year, Sets.Region_full)

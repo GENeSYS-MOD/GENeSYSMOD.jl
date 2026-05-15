@@ -20,16 +20,21 @@ function convert_jump_container_to_df(var::JuMP.Containers.DenseAxisArray;
     end
 
     tup_dim = (dim_names...,)
-    var_val  = value.(var)
+    # Skip the copy when the container already holds plain numbers
+    var_val = eltype(var) <: Number ? var : value.(var)
 
-    if sum(var_val) != 0
-        pairs_nz = [(ind, var_val[ind...]) for ind in Base.Iterators.product(var.axes...) if var_val[ind...] != 0]
-        df = DataFrame([NamedTuple{tup_dim}(p[1]) for p in pairs_nz])
-        df[!, value_col] = [p[2] for p in pairs_nz]
-    else
+    # Iterate only the nonzero entries instead of the full Cartesian product
+    ax = var_val.axes
+    data_arr = var_val.data
+    nz = findall(!iszero, data_arr)
+
+    if isempty(nz)
         push!(dim_names, :Value)
-        df = DataFrame([[] for i in dim_names],dim_names)
+        return DataFrame([[] for i in dim_names], dim_names)
     end
+
+    df = DataFrame([NamedTuple{tup_dim}(map(getindex, ax, Tuple(idx))) for idx in nz])
+    df[!, value_col] = [data_arr[idx] for idx in nz]
     return df
 end
 
@@ -51,7 +56,7 @@ function convert_jump_container_to_df(var::JuMP.Containers.SparseAxisArray;
     end
 
     tup_dim = (dim_names...,)
-    var_val = value.(var)
+    var_val = eltype(var) <: Number ? var : value.(var)
 
     keys = eachindex(var)
     if !isempty(keys)
