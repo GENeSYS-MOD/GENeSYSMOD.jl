@@ -4,3 +4,6 @@ test/TestData/Results
 debug_scripts
 test/test.jl
 test/TestData/Inputs/input_reduced_timeserie_europe_MinimalExample_globalLimit_1924.xlsx
+test/TestData/Inputs/*.xlsx
+*.csv
+*.log
