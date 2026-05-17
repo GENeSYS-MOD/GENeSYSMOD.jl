@@ -104,10 +104,11 @@ function genesysmod_simple_dispatch(; solver, DNLPsolver, year=2018,
     Settings=genesysmod_settings(Sets, Params, Switch.socialdiscountrate)
     genesysmod_bounds(model,Sets,Params,Vars,Settings,Switch,Maps)
     genesysmod_equ(model,Sets,Params,Vars,Emp_Sets,Settings,Switch,Maps)
+
+    println("Lowered ENS costs")
+    Params.VariableCost[:,Params.TagTechnologyToSubsets["DummyTechnology"],:,:] .= 278
     #
     # ####### Fix Investment Variables #############
-    #
-    # read investment results for relevant variables
     if endswith(Switch.resultdir, ".txt")  || endswith(Switch.resultdir, ".TXT")
         tmp_TotalCapacityAnnual = GENeSYS_MOD.read_capacities(file=Switch.resultdir, nam="TotalCapacityAnnual[", year=Sets.Year, technology=Sets.Technology, region=Sets.Region_full)
         tmp_TotalTradeCapacity = GENeSYS_MOD.read_trade_capacities(file=Switch.resultdir, nam="TotalTradeCapacity[", year=Sets.Year, technology=Sets.Fuel, region=Sets.Region_full)
@@ -121,16 +122,6 @@ function genesysmod_simple_dispatch(; solver, DNLPsolver, year=2018,
         in_data=CSV.read(joinpath(Switch.resultdir, "NewStorageCapacity_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * ".csv"), DataFrame)
         tmp_NewStorageCapacity = GENeSYS_MOD.create_daa(in_data, "Par_NewStorageCapacity", data_base_region, Sets.Storage, Sets.Year, Sets.Region_full)
     end
-
-
-    # fix rate of activity if zero mode
-    #for y ∈ Sets.Year, r ∈ Sets.Region_full, t ∈ Sets.Technology, m ∈ Sets.Mode_of_operation
-    #    if tmp_AnnualActivityMode[y,t,m,r] == 0
-  #          println(y,r,t,m)
-            #@constraint(model, model[:RateOfActivity][y,:,t,m,r] .== 0,
-            #    base_name="Fix_RateofActivitybyMode_$(y)_$(t)_$(r)_$(m)")
-   #     end
-    #end
 
     for y ∈ Sets.Year, r ∈ Sets.Region_full, m ∈ 1:2, t ∈ ["HMI_Gas", "P_Gas_OCGT", "HLI_Gas_Boiler", "HLR_Gas_Boiler", "CHP_Gas_CCGT_Natural"]
         if tmp_AnnualActivityMode[y,t,m,r] == 0
@@ -236,7 +227,7 @@ function genesysmod_simple_dispatch(; solver, DNLPsolver, year=2018,
             resultdir = Switch.resultdir
         end
 
-        open(joinpath(resultdir, "dispatch_$(basename(Switch.resultdir))_l.txt"), "w") do file
+        open(joinpath(resultdir, "dispatch_$(basename(Switch.resultdir)).txt"), "w") do file
             objective = objective_value(model)
             println(file, "Objective = $objective")
             for v in all_variables(model)
@@ -246,22 +237,14 @@ function genesysmod_simple_dispatch(; solver, DNLPsolver, year=2018,
                     println(file, "$str = $val")
                 end
             end
+            for y ∈ Sets.Year, l ∈ Sets.Timeslice
+                avg_price = mean(
+                    dual(constraint_by_name(model, "EB2_EnergyBalanceEachTS|$(y)|$(l)|Power|$(r)"))
+                    for r ∈ Sets.Region_full, t ∈ Sets.Technology
+                )
+                println(file, "PowerPrice[$y,$l] = $avg_price")
+            end
         end
-
-        # for y ∈ axes(VarPar.ProductionByTechnology)[1], l ∈ axes(VarPar.ProductionByTechnology)[2], t ∈ axes(VarPar.ProductionByTechnology)[3], f ∈ axes(VarPar.ProductionByTechnology)[4], r ∈ axes(VarPar.ProductionByTechnology)[5]
-        #     value = VarPar.ProductionByTechnology[y,l,t,f,r]
-        #     if value > 0
-        #         println(file, "ProductionByTechnology[$y,$l,$t,$f,$r] = $value")
-        #     end
-        # end
-        #     for y ∈ axes(Params.RateOfDemand)[1], l ∈ axes(Params.RateOfDemand)[2], f ∈ axes(Params.RateOfDemand)[3], r ∈ axes(Params.RateOfDemand)[4]
-        #         value = Params.Demand[y,l,f,r] *  Params.YearSplit[l,y]
-        #         if value > 0
-        #             println(file, "RateOfDemand[$y,$l,$f,$r] = $value")
-        #             println(file, "Demand[$y,$l,$f,$r] = $(Params.Demand[y,l,f,r])")
-        #         end
-        #     end
-        # end
 
         if switch_processed_results == 1
             GENeSYS_MOD.genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, elapsed,"dispatch")

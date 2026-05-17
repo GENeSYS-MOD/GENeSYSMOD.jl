@@ -56,14 +56,16 @@ function genesysmod_dataload(Switch)
     end
     Timeslice_full = 1:8760
     
-    if Switch.clusters == 0 
+    if Switch.clusters == 0 && Switch.elmod_nthhour != 1
         n_th = floor(Int, (8760/(Switch.elmod_nthhour*24)))
         lenth_must = Switch.elmod_nthhour * 24
         Timeslice = [x for x in 1:8760 if (x-Switch.elmod_starthour)%(n_th) == 0][1:lenth_must]
+    elseif Switch.clusters == 0 && Switch.elmod_nthhour == 1
+        Timeslice = 1:8760
     else
         Timeslice = 1:Switch.clusters*24
     end
-
+    println(Timeslice)
     if Switch.switch_dispatch == 1
         Year = [2050]
         Timeslice = 1:8760

@@ -73,13 +73,9 @@ function genesysmod_variable_parameter(model, Sets, Params)
                 #    UseByTechnology[y,l,t,f,r] += JuMP.value(model[:RateOfActivity][y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y]*Params.TimeDepEfficiency[r,t,l,y]
                 #end
         
-                #RateOfProduction[y,l,f,r] = sum(JuMP.value(model[:RateOfActivity][y,l,t,m,r])*Params.OutputActivityRatio[r,t,f,m,y] for (t,m) ∈ LoopSetOutput[(r,f,y)] )
                 RateOfProduction[y,l,f,r] = sum(RateOfProductionByTechnology[y,l,:,f,r])
-                #RateOfUse[y,l,f,r] = sum(JuMP.value(model[:RateOfActivity][y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y] for (t,m) ∈ LoopSetInput[(r,f,y)] )
                 RateOfUse[y,l,f,r] = sum(RateOfUseByTechnology[y,l,:,f,r])
-                #Production[y,l,f,r] = sum(JuMP.value(model[:RateOfActivity][y,l,t,m,r])*Params.OutputActivityRatio[r,t,f,m,y] for (t,m) ∈ LoopSetOutput[(r,f,y)] )*Params.YearSplit[l,y]
                 Production[y,l,f,r] = sum(ProductionByTechnology[y,l,:,f,r])
-                #Use[y,l,f,r] = sum(JuMP.value(model[:RateOfActivity][y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y] for (t,m) ∈ LoopSetInput[(r,f,y)] )*Params.YearSplit[l,y]
                 Use[y,l,f,r] = sum(UseByTechnology[y,l,:,f,r])
             end
         end

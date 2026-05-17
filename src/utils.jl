@@ -40,16 +40,15 @@ function convert_jump_container_to_df(var::JuMP.Containers.DenseAxisArray;
     end
 
     tup_dim = (dim_names...,)
-
-    # With a product over all axis sets of size M, form an Mx1 Array of all indices to the JuMP container `var`
-    ind = reshape([collect(k[i] for i in 1:length(dim_names)) for k in Base.Iterators.product(var.axes...)],:,1)
-
     var_val  = value.(var)
 
-    df = DataFrame([merge(NamedTuple{tup_dim}(ind[i]), NamedTuple{(value_col,)}(var_val[(ind[i]...,)...])) for i in 1:length(ind) if var_val[(ind[i]...,)...] !=0])
-    # for the old version of results
-    # df = DataFrame([merge(NamedTuple{tup_dim}(ind[i]), NamedTuple{(value_col,)}(var_val[(ind[i]...,)...])) for i in 1:length(ind)])
-
+    # With a product over all axis sets of size M, form an Mx1 Array of all indices to the JuMP container `var`
+    indices = collect(Base.Iterators.product(var.axes...))
+    data = [NamedTuple{tup_dim}(ind) for ind in indices if var_val[ind...] != 0]
+    values = [var_val[ind...] for ind in indices if var_val[ind...] != 0]
+    
+    df = DataFrame(data)
+    df[!, value_col] = values
     return df
 end
 

@@ -164,8 +164,10 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
     #
     if Switch.switch_dispatch == 0
         for r ∈ Sets.Region_full
-            for t ∈ intersect(Sets.Technology, vcat(Params.TagTechnologyToSubsets["Transformation"],Params.TagTechnologyToSubsets["PowerSupply"], Params.TagTechnologyToSubsets["SectorCoupling"], Params.TagTechnologyToSubsets["StorageDummies"]))
-                JuMP.fix(Vars.NewCapacity[Switch.StartYear,t,r],0; force=true)
+            if length(Sets.Year) != 1
+                for t ∈ intersect(Sets.Technology, vcat(Params.TagTechnologyToSubsets["Transformation"],Params.TagTechnologyToSubsets["PowerSupply"], Params.TagTechnologyToSubsets["SectorCoupling"], Params.TagTechnologyToSubsets["StorageDummies"]))
+                    JuMP.fix(Vars.NewCapacity[Switch.StartYear,t,r],0; force=true)
+                end
             end
             for t ∈ intersect(Sets.Technology, vcat(Params.TagTechnologyToSubsets["Biomass"],Params.TagTechnologyToSubsets["CHP"],["HLR_Gas_Boiler","HLI_Gas_Boiler","HHI_BF_BOF",
                 "HHI_Bio_BF_BOF","HHI_Scrap_EAF","HHI_DRI_EAF", "D_Gas_Methane"]))
@@ -234,7 +236,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
 
         for y ∈ Sets.Year for r ∈ Sets.Region_full 
             if (y > 2020) && (Params.RegionalCCSLimit[r] > 0)
-                for t ∈ Params.TagTechnologyToSubsets["CCS"]
+                for t ∈ intersect(Sets.Technology, Params.TagTechnologyToSubsets["CCS"])
                     Params.AvailabilityFactor[r,t,y] = 0.95
                 end
             else 
@@ -260,7 +262,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         for y ∈ Sets.Year for r ∈ Sets.Region_full for t ∈ intersect(Sets.Technology, Params.TagTechnologyToSubsets["CCS"])
             Params.AvailabilityFactor[r,t,y] = 0
             Params.TotalAnnualMaxCapacity[r,t,y] = 0
-            for f ∈ Sets.Fuel
+            for f ∈ Maps.Tech_Fuel[t]
                 JuMP.fix(Vars.ProductionByTechnologyAnnual[y,t,f,r], 0; force = true)
             end
         end end end

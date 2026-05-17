@@ -49,7 +49,7 @@ function create_df_hourly(in_data, tab_name)
     df = DataFrame(XLSX.gettable(in_data[tab_name]))
     long_df = stack(df,3:ncol(df)) # 3 because data starts at column 3, 1 is the hours and 2 is the timeslice
 
-    select!(long_df, Not(:TIMESLICE)) #remove the timeslice column
+    select!(long_df, Not(:TIMESLICE)) #remove the timeslice colum
 
     return long_df
 end
@@ -119,7 +119,7 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
     Timeslice_full = 1:8760
     switch_dunkelflaute = 0
 
-    if Switch.switch_dispatch == 1
+    if Switch.switch_dispatch == 1  || Switch.elmod_nthhour == 1
         Timeslice = 1:8760
         elmod_nthhour = 1
     else
@@ -209,15 +209,17 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
                 end
             else
                 if "HLR_Heatpump_Aerial" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] = CountryData["HP_AIRSOURCE"][:,r]
+                    CapacityFactor[r,"HLR_Heatpump_Aerial",:,y] .= 1
+                    TimeDepEfficiency[r,"HLR_Heatpump_Aerial",:,y] =  CountryData["HP_AIRSOURCE"][:,r]
                 end
                 if "HLR_Heatpump_Ground" ∈ capf_list
-                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] = CountryData["HP_GROUNDSOURCE"][:,r]
+                    CapacityFactor[r,"HLR_Heatpump_Ground",:,y] .= 1
+                    TimeDepEfficiency[r,"HLR_Heatpump_Ground",:,y] = CountryData["HP_GROUNDSOURCE"][:,r]
                 end
 
-                for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
-                    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][:,r]
-                end
+                #for t ∈ setdiff(capf_list, ["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
+                #    CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][:,r]
+                #end
             end
         end
     end
@@ -231,13 +233,15 @@ function timeseries_reduction(Sets, TagTechnologyToSubsets, Switch, SpecifiedAnn
         df_CapacityFactor = convert_jump_container_to_df(CapacityFactor[:,capf_list,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
         df_x_peakingDemand = convert_jump_container_to_df(x_peakingDemand;dim_names=[:Region,:Sector])
         df_YearSplit = convert_jump_container_to_df(YearSplit;dim_names=[:Timeslice,:Year])
+        df_TimeDepEfficiency = convert_jump_container_to_df(TimeDepEfficiency[:,["HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"], :,:])
+
         
         filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(Switch.elmod_nthhour).xlsx"
         if isfile(filename)
             rm(filename)
         end
         XLSX.writetable(filename,
-        "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, "CapacityFactor" => df_CapacityFactor, "x_peakingDemand" => df_x_peakingDemand,
+        "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, "CapacityFactor" => df_CapacityFactor, "x_peakingDemand" => df_x_peakingDemand, "TimeDepEfficiency"  =>  df_TimeDepEfficiency,
         "YearSplit" => df_YearSplit)
     end
 
@@ -250,7 +254,7 @@ function time_series_optimization(Sets, TagTechnologyToSubsets, Switch, Specifie
 
     Timeslice_full = 1:8760
     switch_dunkelflaute = 0
-    if Switch.switch_dispatch == 1
+    if Switch.switch_dispatch == 1  || Switch.elmod_nthhour == 1
         elmod_nthhour = 1
         Timeslice = 1:8760
     else
@@ -465,9 +469,9 @@ function time_series_optimization(Sets, TagTechnologyToSubsets, Switch, Specifie
         end end
     end
 
-    for cde ∈ Country_Data_Entries
-        ScaledCountryData[cde] .= round.(ScaledCountryData[cde], digits=11)
-    end
+    #for cde ∈ Country_Data_Entries
+    #    ScaledCountryData[cde] .= round.(ScaledCountryData[cde], digits=11)
+    #end
 
     return ScaledCountryData
 end
@@ -505,6 +509,8 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
         "Heat_Medium_Industrial" => "Heat_High_Industrial",
     ]
 
+    pca_ts = ["RES_Wind_Offshore_Deep", "RES_PV_Utility_Avg", "Power", "HLR_Heatpump_Aerial", "Heat_Low_Residential"]
+
     # profiles based on medoid
     seasonal = intersect(collect(keys(keys_mapping)), ["RES_Hydro_Small","Mobility_Passenger","HLR_Heatpump_Ground","Heat_High_Industrial" ])
 
@@ -513,7 +519,7 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
     config["SCTOLERANCE"] = 10.0e-6
     config["Country_Data_Entries"] = 𝓣 = intersect(collect(keys(keys_mapping)), vcat(Sets.Fuel, Sets.Technology))
     config["countries"] = 𝓡 = [x for x in  Sets.Region_full if x != "World"]
-    config["Load"] = load = intersect(Sets.Fuel, ["Mobility_Freight", "Heat_Low_Industrial","Heat_High_Industrial", "Mobility_Passenger", "Heat_Medium_Industrial", "Heat_Low_Residential", "Power"])
+    config["Load"] = load = intersect(Sets.Fuel, ["Mobility_Freight", "Heat_Low_Industrial","Heat_High_Industrial", "Mobility_Passenger", "Heat_Medium_Industrial", "Heat_Low_Residential", "Power", "HLR_Heatpump_Aerial", "HLR_Heatpump_Ground"])
     res = setdiff(config["Country_Data_Entries"], load)
 
 
@@ -531,53 +537,28 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
     end
 
     # prepare data in vector format
-    data_clustering_org = TSClustering.create_clustering_matrix(technology=𝓣, CountryData=CountryData)
     data = TSClustering.normalize_data(config=config, CountryData=CountryData)
 
     # use pca data if available
     if length(Switch.pca_path) >= 1
-        println("PCA")
-        data_clustering = TSClustering.create_clustering_matrix(technology=["PCA"], CountryData=Dict("PCA" => DataFrame(XLSX.readtable(Switch.pca_path, 1))))
+        pca_res =  TSClustering.derive_principal_components(config=config, CountryData=CountryData, technology=pca_ts)
+        data_clustering = TSClustering.create_clustering_matrix(technology=["PCA"], CountryData=Dict("PCA" => DataFrame(Matrix(pca_res), :auto)))
     else
-        data_clustering = TSClustering.create_clustering_matrix(technology=𝓣, CountryData=data)
-        # without the daily profile
-        if occursin("02_Medoid_withoutdaily", Switch.resultdir)
-            data_clustering = TSClustering.create_clustering_matrix(technology=setdiff(𝓣, seasonal), CountryData=data)
-        end
+        data_clustering = TSClustering.create_clustering_matrix(technology=setdiff(𝓣, seasonal), CountryData=data)        
     end
 
-    a = Dates.now()
-    datapr = (a - starttime)
     # define distance matrix 
     D = TSClustering.define_distance(w=Switch.warping_window, data_clustering=data_clustering, fast_dtw=false)
-    b = Dates.now()
-    dtw = (b - a)
 
-    extremes = false 
-    days = [58,204,365]
-    number_extremes = 0
     ############# CLUSTERING #############
     
     if occursin("Kmeans", Switch.resultdir)
-        println("kmeans")
         R = kmeans(data_clustering, Switch.clusters; maxiter=200, display=:iter)
         cl = assignments(R) 
     else
         result = hclust(D, linkage=:ward)
         cl = cutree(result, k=Switch.clusters)
     end
-
-    println("TS Length")
-    println(cl)
-
-    c = Dates.now()
-    clustering = (c - b)
-    if extremes
-        for (j,i) in enumerate(days)
-            cl[i] = Switch.clusters + j
-        end
-    end
-    
     
     #calculate weights
     weights = Dict{Int64, Int64}()
@@ -597,22 +578,12 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
     end
 
     if Switch.hoffmann
-        println("Hoffmann is selected")
         sc = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(𝓣), Switch.clusters, 24), 𝓡, 𝓣, 1:Switch.clusters, 1:24) 
-        if extremes
-            for d ∈ Switch.clusters-number_extremes:Switch.clusters, k ∈ days
-                for c ∈ 𝓡, t ∈ 𝓣
-                    sc[c,t,d,:] = CountryData[t][(k-1)*24+1:k*24,c]
-                end
-            end
-        end
-        sc1 = TSClustering.calculate_representative_value_distribution(data_org=filter(kv -> kv[1] ∉ seasonal, CountryData), cl=cl, config=config, K=(Switch.clusters)-number_extremes);
+        sc1 = TSClustering.calculate_representative_value_distribution(data_org=filter(kv -> kv[1] ∉ seasonal, CountryData), cl=cl, config=config, K=(Switch.clusters));
 
         for t ∈ keys(filter(kv -> kv[1] ∉ seasonal, CountryData)), c ∈ 𝓡
             b = vcat([vec(sc1[c, t, i, :]) for i in 1:(Switch.clusters)]...)
-            #sg = savitzky_golay(b, 3, 1)  
-            for d ∈ 1:(Switch.clusters)-number_extremes
-                #sc[c,t,d,:] = sg.y[(24*(d-1))+1:24*d]
+            for d ∈ 1:(Switch.clusters)
                 sc[c,t,d,:] = sc1[c,t,d,:]
                 for h ∈ 1:24
                    if sc[c,t,d,h] <0
@@ -622,9 +593,9 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
             end
         end
         ## medoid for seasonal profiles with missing data
-        cluster_dict_org = TSClustering.calculate_medoid(data_org=CountryData,cl=cl,config=config,K=(Switch.clusters-number_extremes), technology=seasonal)
-        sc2 = TSClustering.scaling(data_org=CountryData, scaled_clusters=cluster_dict_org, k=(Switch.clusters-number_extremes), weights=weights, config=config, technology=seasonal);
-        for t ∈ seasonal, c ∈ 𝓡, k ∈ 1:(Switch.clusters-number_extremes)
+        cluster_dict_org = TSClustering.calculate_medoid(data_org=CountryData,cl=cl,config=config,K=(Switch.clusters), technology=seasonal)
+        sc2 = TSClustering.scaling(data_org=CountryData, scaled_clusters=cluster_dict_org, k=(Switch.clusters), weights=weights, config=config, technology=seasonal);
+        for t ∈ seasonal, c ∈ 𝓡, k ∈ 1:(Switch.clusters)
             sc[c,t,k,:] = sc2[c,t,k,:]
             for h ∈ 1:24
                 if sc[c,t,k,h] < 0
@@ -636,15 +607,12 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
     else
         # calculate the medoids & bring into JumP formata
         if occursin("Centroid", Switch.resultdir)
-            println("Centroid")
             cluster_dict_org = TSClustering.calculate_centroid(data_org=CountryData,cl=cl,config=config,K=Switch.clusters, technology=𝓣)
         else
             cluster_dict_org = TSClustering.calculate_medoid(data_org=CountryData,cl=cl,config=config,K=Switch.clusters, technology=𝓣)
         end
         sc = TSClustering.scaling(data_org=CountryData, scaled_clusters=cluster_dict_org, k=Switch.clusters, weights=weights, config=config, technology=𝓣);
     end
-    d = Dates.now()
-    repres = (d - c)
 
     CapacityFactor = JuMP.Containers.DenseAxisArray(ones(length(𝓡), length(Sets.Technology), length(Sets.Timeslice), length(Sets.Year)), 𝓡, Sets.Technology, Sets.Timeslice, Sets.Year)
     SpecifiedDemandProfile = JuMP.Containers.DenseAxisArray(zeros(length(𝓡), length(Sets.Fuel), length(Sets.Timeslice), length(Sets.Year)), 𝓡, Sets.Fuel, Sets.Timeslice, Sets.Year)
@@ -667,18 +635,17 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
                     tmp_sum += SpecifiedDemandProfile[r,t,(c-1)*24+i,y]
                 end
                 for i ∈ 1:24
-                    SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = (SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] / tmp_sum)*(weights[c]/365)
+                    SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = (SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] / tmp_sum) *(weights[c]/365)
+                    if any(isnan, SpecifiedDemandProfile[r,t,((c-1)*24)+i,y])
+                        SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = 0
+                        println(tmp_sum)
+                        println(weights[c]/365)
+                        @warn "NaN in SpecifiedDemandProfile for $(r), $(t), year $(y)"
+                    end
                 end 
             end 
-            # tmp_sum = sum(SpecifiedDemandProfile[r,t,:,y])
-            # for c ∈ 1:Switch.clusters
-            #     for i ∈ 1:24
-            #         SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] = SpecifiedDemandProfile[r,t,((c-1)*24)+i,y] / tmp_sum
-            #     end
-            # end
         end
 
-        
         # include profiles based on another profile
         for (k,v) ∈ map_load
             SpecifiedDemandProfile[r,k,:,y] = SpecifiedDemandProfile[r,v,:,y]
@@ -712,11 +679,7 @@ function hierarchical_clustering(Sets, TagTechnologyToSubsets, Switch, Specified
         "YearSplit" => df_YearSplit)
     end
 
-    ## save the computational burden
-    total=datapr+dtw+clustering+repres
-    open(joinpath("/cluster/home/danare/git/dana/results/spatial/time.txt"), "a") do file
-        write(file, "$(Switch.hoffmann);$(Switch.clusters); 0; $(Switch.warping_window); $datapr; $dtw; $clustering; $repres; $total\n")
-    end
+
 
     return SpecifiedDemandProfile, CapacityFactor, x_peakingDemand, YearSplit, cl, weights, TimeDepEfficiency
 end
