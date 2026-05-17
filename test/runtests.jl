@@ -28,9 +28,9 @@ end
     @testset "Investment Run" begin
         @track "Investment Run" include("test.jl")
     end
-    # @testset "Fetch Input Data" begin
-    #     @track "Fetch Input Data" include("test_fetchdata.jl")
-    # end
+    @testset "Fetch Input Data" begin
+        @track "Fetch Input Data" include("test_fetchdata.jl")
+    end
     @testset "Dispatch Runs" begin
         @testset "Simple Dispatch" begin
             @track "Simple Dispatch" include("test_dispatch_simple.jl")
