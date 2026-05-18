@@ -678,7 +678,8 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
 
     ## Final Energy for all regions per sector
     fed= JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year),length(Sets.Fuel),length(Sets.Region_full),length(Sets.Sector)), Sets.Year, Sets.Fuel, Sets.Region_full, Sets.Sector)
-    for se ∈ FinalDemandSector, y ∈ Sets.Year, f ∈ setdiff(Sets.Fuel,["Area_Rooftop_Residential","Area_Rooftop_Commercial","Heat_District"]), r ∈ Sets.Region_full
+    f_tmp = setdiff(Sets.Fuel,["Area_Rooftop_Residential","Area_Rooftop_Commercial","Heat_District"])
+    for se ∈ FinalDemandSector, y ∈ Sets.Year, f ∈ f_tmp, r ∈ Sets.Region_full
         techs = [x for (x,y) ∈ Maps.Set_Tech_FuelIn if y==f]
         if !isempty(techs) && any(t-> Params.Tags.TagTechnologyToSector[t,se] != 0, techs)
             fed[y,f,r,se] = sum(value(Vars.UseByTechnologyAnnual[y,t,f,r]) for t ∈ techs if Params.Tags.TagTechnologyToSector[t,se] != 0)/3.6
@@ -780,8 +781,9 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
 
     pe= JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year),length(Sets.Fuel),length(Sets.Region_full)), Sets.Year, Sets.Fuel, Sets.Region_full)
     pe_p= JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year),length(Sets.Fuel),length(Sets.Region_full)), Sets.Year, Sets.Fuel, Sets.Region_full)
+    f_tmp = setdiff(Sets.Fuel, ["Area_Rooftop_Residential","Area_Rooftop_Commercial"])
     for y ∈ Sets.Year, r ∈ Sets.Region_full
-        for f ∈ setdiff(Sets.Fuel, ["Area_Rooftop_Residential","Area_Rooftop_Commercial"])
+        for f ∈ f_tmp
             techs = [t for (t,f_) in Maps.Set_Tech_FuelOut if f_ == f]
             if !isempty(techs)
                 input_fuels = [ff for t in techs for (ff,tt) in Maps.Set_Tech_FuelIn if tt == t]
@@ -798,7 +800,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                 pe[y,f,r] = 0
             end
         end
-        for f ∈ setdiff(Sets.Fuel, ["Area_Rooftop_Residential","Area_Rooftop_Commercial"])
+        for f ∈ f_tmp
             if sum(pe[y,:,r]) != 0
                 pe_p[y,f,r] = pe[y,f,r] / sum(pe[y,:,r])
             else

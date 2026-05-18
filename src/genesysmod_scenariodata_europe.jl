@@ -18,7 +18,7 @@ module ScenarioDataEurope
         end
 
         # Limit capacity expansion in 2025 to only actually (historically) installed capacities
-        for r ∈ Sets.Region_full, t ∈ setdiff(Params.Tags.TagTechnologyToSubsets["PowerSupply"],["P_Nuclear"])
+        for t ∈ setdiff(Params.Tags.TagTechnologyToSubsets["PowerSupply"],["P_Nuclear"]), r ∈ Sets.Region_full
             if  Params.TotalAnnualMinCapacity[r,t,2025] == 0
                 @constraint(model, Vars.NewCapacity[2025,t,r] <= Params.TotalAnnualMinCapacity[r,t,2025], base_name="ScenarioData_Europe_NewCapacity_2025_$(t)_$(r)") #Shouldn't that be fixed to 0?
             end

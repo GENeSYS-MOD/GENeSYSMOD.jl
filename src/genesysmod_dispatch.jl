@@ -286,8 +286,9 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     tmp_NetTradeAnnual = create_daa(in_data, "Par_NetTradeAnnual", data_base_region, Sets.Year, Sets.Fuel, Sets.Region_full) =#
 
     # make constraints fixing investments
+    t_tmp = t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
     for y ∈ Sets.Year for r ∈ Sets.Region_full
-        for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
+        for t ∈ t_tmp
             @constraint(model, model[:TotalCapacityAnnual][y,t,r] == tmp_TotalCapacityAnnual[y,t,r],
             base_name="Fix_Investments_$(y)_$(t)_$(r)")
         end
@@ -326,8 +327,10 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     storage_ratio = tmp_NetTradeAnnual
 
     # make constraints fixing investments
+    t_tmp = setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
+    s_tmp = setdiff(Sets.Storage, ["S_Trade_Storage_$f" for f in Sets.Fuel])
     for y ∈ Sets.Year for r ∈ Sets.Region_full
-        for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
+        for t ∈ t_tmp
             fix(model[:TotalCapacityAnnual][y,t,r], tmp_TotalCapacityAnnual[y,t,r]!= 0 ? max(threshold,tmp_TotalCapacityAnnual[y,t,r]) : 0; force=true)
         end
         if Switch.switch_infeasibility_tech == 1
@@ -349,7 +352,7 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
             end
         end
 
-        for s ∈ setdiff(Sets.Storage, ["S_Trade_Storage_$f" for f in Sets.Fuel])
+        for s ∈ s_tmp
             fix(model[:TotalStorageCapacityAnnual][s,y,r], tmp_TotalStorageCapacityAnnual[s,y,r] != 0 ? max(threshold,tmp_TotalStorageCapacityAnnual[s,y,r]) : 0; force=true)
         end
 
@@ -377,8 +380,9 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     #= in_data=CSV.read(joinpath(Switch.resultdir, "NetTradeAnnual_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * ".csv"), DataFrame)
     tmp_NetTradeAnnual = create_daa(in_data, "Par_NetTradeAnnual", data_base_region, Sets.Year, Sets.Fuel, Sets.Region_full) =#
     # make constraints fixing investments
+    t_tmp = setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
     for y ∈ Sets.Year
-        for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
+        for t ∈ t_tmp
             fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[2]], sum(tmp_TotalCapacityAnnual[y,t,re] for re in region_full if re!=Sets.Region_full[1]); force=true)
             fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[1]], tmp_TotalCapacityAnnual[y,t,Sets.Region_full[1]]; force=true)
             # @constraint(model, model[:TotalCapacityAnnual][y,t,r] == tmp_TotalCapacityAnnual[y,t,r],

@@ -7,13 +7,15 @@ function genesysmod_settings(Sets, Params, socialdiscountrate)
     GeneralDiscountRate=JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full)), Sets.Region_full)
     TechnologyDiscountRate=JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full), length(Sets.Technology)), Sets.Region_full, Sets.Technology)
     SocialDiscountRate=JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full)), Sets.Region_full)
+    t_diff = setdiff(Sets.Technology,Params.Tags.TagTechnologyToSubsets["Households"])
+    t_inter = intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Households"])
     for r ∈ Sets.Region_full
         DepreciationMethod[r] = 1
         GeneralDiscountRate[r] = Float64(0.05)
-        for t ∈ setdiff(Sets.Technology,Params.Tags.TagTechnologyToSubsets["Households"])
+        for t ∈ t_diff
             TechnologyDiscountRate[r,t] = Float64(0.05)
         end
-        for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Households"])
+        for t ∈ t_inter
             TechnologyDiscountRate[r,t] = Float64(0.05)
         end
         SocialDiscountRate[r] = socialdiscountrate

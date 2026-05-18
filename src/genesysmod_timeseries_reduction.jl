@@ -360,6 +360,7 @@ function timeseries_reduction!(Params, Sets, Switch)
     end
 
     end_uses = union(["Power"], Params.Tags.TagFuelToSubsets["HeatFuels"], Params.Tags.TagFuelToSubsets["TransportFuels"])
+    f_tmp = setdiff(end_uses, ["Power"])
     for r ∈ Sets.Region_full
         for f ∈ Sets.Fuel
             if sum(Params.SpecifiedAnnualDemand[r,f,:]) != 0
@@ -368,7 +369,7 @@ function timeseries_reduction!(Params, Sets, Switch)
                 Params.SpecifiedDemandProfile[r,f,:,Sets.Year[1]] = [0.0 for i ∈ 1:length(Sets.Timeslice)]
             end
         end
-        for f ∈ setdiff(end_uses, ["Power"])
+        for f ∈ f_tmp
             Params.SpecifiedDemandProfile[r,f,:,Sets.Year[1]] = tmp[keys_mapping[f]][Sets.Timeslice,r]
         end
     end
@@ -377,11 +378,14 @@ function timeseries_reduction!(Params, Sets, Switch)
         Params.SpecifiedDemandProfile[r,f,:,y] = Params.SpecifiedDemandProfile[r,f,:,Sets.Year[1]]
     end end end
 
+    t_inter_solar = intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Solar"])
+    t_inter_wind = intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Wind"])
+    capf_diff_HP = setdiff(capf_list, ["HB_Heatpump_Aerial", "HB_Heatpump_Ground"])
     for y ∈ Sets.Year
-        for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Solar"])
+        for t ∈ t_inter_solar
             Params.CapacityFactor[:,t,:,y] .= 0
         end
-        for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Wind"])
+        for t ∈ t_inter_wind
             Params.CapacityFactor[:,t,:,y] .= 0
         end
         for r ∈ Sets.Region_full
@@ -395,7 +399,7 @@ function timeseries_reduction!(Params, Sets, Switch)
                     Params.TimeDepEfficiency[r,"HB_Heatpump_Ground",:,y] = ScaledCountryData["HP_GROUNDSOURCE"][Sets.Timeslice,r]
                 end
 
-                for t ∈ setdiff(capf_list, ["HB_Heatpump_Aerial", "HB_Heatpump_Ground"])
+                for t ∈ capf_diff_HP
                     Params.CapacityFactor[r,t,:,y] = ScaledCountryData[keys_mapping[t]][Sets.Timeslice,r]
                 end
             else
@@ -408,7 +412,7 @@ function timeseries_reduction!(Params, Sets, Switch)
                     Params.TimeDepEfficiency[r,"HB_Heatpump_Ground",:,y] = CountryData["HP_GROUNDSOURCE"][Sets.Timeslice,r]
                 end
 
-                for t ∈ setdiff(capf_list, ["HB_Heatpump_Aerial", "HB_Heatpump_Ground"])
+                for t ∈ capf_diff_HP
                     Params.CapacityFactor[r,t,:,y] = CountryData[keys_mapping[t]][:,r]
                 end
             end

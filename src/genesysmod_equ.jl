@@ -497,23 +497,27 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
   ############## Pipeline-specific Capacity Accounting #############
   set_regions = [(y,z) for (x,y,z) ∈ Maps.Set_Fuel_Regions if x in intersect(𝓕,Params.Tags.TagFuelToSubsets["GasFuels"])]
-  for y ∈ 𝓨 for l ∈ 𝓛 for (r,rr) ∈ set_regions
+  for y ∈ 𝓨 for (r,rr) ∈ set_regions
     fuels= [x for (x,y,z) ∈ Maps.Set_Fuel_Regions if (y == r) && (z == rr) && (x in intersect(𝓕,Params.Tags.TagFuelToSubsets["GasFuels"]))]
-    if Switch.switch_hydrogen_blending_share == 0
-        @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ setdiff(fuels,["H2"])) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
-        base_name="TrPA1a_TradeCapacityPipelineAccounting|$(y)|$(l)|$(r)|$(rr)")
+    fuels_no_h2blend = setdiff(fuels,["H2_Blend"])
+    fuels_no_h2 = setdiff(fuels,["H2"])
+    for l ∈ 𝓛
+        if Switch.switch_hydrogen_blending_share == 0
+            @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels_no_h2) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
+            base_name="TrPA1a_TradeCapacityPipelineAccounting|$(y)|$(l)|$(r)|$(rr)")
 
-    elseif (Switch.switch_hydrogen_blending_share < 1) && (Switch.switch_hydrogen_blending_share > 0)
-        dedicated_h2 = Switch.switch_hydrogen_blending_share
-        @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels if f != "H2_Blend") + Vars.Import[y,l,"H2_Blend",rr,r]*(11.4/3.0) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
-        base_name="TrPA1b_TradeCapacityPipelineAccountingGasFuels|$(y)|$(l)|$(r)|$(rr)")
-        @constraint(model, Vars.Import[y,l,"H2_Blend",rr,r] <= (dedicated_h2/((1-dedicated_h2)*(11.4/3.0))) * sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels if f != "H2_Blend"),
-        base_name="TrPl1c_TradeCapacityPipelinesLines|$(y)|$(l)|$(r)|$(rr)")
-    elseif Switch.switch_hydrogen_blending_share == 1
-        @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels if f != "H2_Blend") + Vars.Import[y,l,"H2_Blend",rr,r]*(11.4/3.0) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
-        base_name="TrPA1d_TradeCapacityPipelineAccountingCombined|$(y)|$(l)|$(r)|$(rr)")
+        elseif (Switch.switch_hydrogen_blending_share < 1) && (Switch.switch_hydrogen_blending_share > 0)
+            dedicated_h2 = Switch.switch_hydrogen_blending_share
+            @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels_no_h2blend) + Vars.Import[y,l,"H2_Blend",rr,r]*(11.4/3.0) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
+            base_name="TrPA1b_TradeCapacityPipelineAccountingGasFuels|$(y)|$(l)|$(r)|$(rr)")
+            @constraint(model, Vars.Import[y,l,"H2_Blend",rr,r] <= (dedicated_h2/((1-dedicated_h2)*(11.4/3.0))) * sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels_no_h2blend),
+            base_name="TrPl1c_TradeCapacityPipelinesLines|$(y)|$(l)|$(r)|$(rr)")
+        elseif Switch.switch_hydrogen_blending_share == 1
+            @constraint(model, sum(Vars.Import[y,l,f,rr,r] for f ∈ fuels_no_h2blend) + Vars.Import[y,l,"H2_Blend",rr,r]*(11.4/3.0) <= Vars.TotalTradeCapacity[y,"Gas_Natural",r,rr]*Params.YearSplit[l,y],
+            base_name="TrPA1d_TradeCapacityPipelineAccountingCombined|$(y)|$(l)|$(r)|$(rr)")
+        end
     end
-  end end end
+  end end
 
   ######## Gas-specific import restrictions over the year
 
@@ -645,8 +649,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
     ############## CCS-specific constraints #############
     if Switch.switch_ccs == 1
+      f_tmp = setdiff(𝓕,["DAC_Dummy"])
       for r ∈ 𝓡
-        for i ∈ 2:length(𝓨) for f ∈ setdiff(𝓕,["DAC_Dummy"])
+        for i ∈ 2:length(𝓨) for f ∈ f_tmp
           techs=[x for (x,y) ∈ Maps.Set_Tech_FuelOut if y == f]
           @constraint(model,
           sum(Vars.ProductionByTechnologyAnnual[𝓨[i],t,f,r]-Vars.ProductionByTechnologyAnnual[𝓨[i-1],t,f,r] for t ∈ intersect(techs,Params.Tags.TagTechnologyToSubsets["CCS"])) <= YearlyDifferenceMultiplier(𝓨[i-1],Sets)*(Params.ProductionGrowthLimit["Air",𝓨[i]])*sum(Vars.ProductionByTechnologyAnnual[𝓨[i-1],t,f,r] for t ∈ techs),
@@ -1260,12 +1265,12 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     RenewableCapacityFactorReduction = Switch.set_peaking_res_cf
     MinThermalShare = Switch.set_peaking_min_thermal
     for y ∈ 𝓨 for r ∈ 𝓡
-      techs = [x for (x,y) ∈ Maps.Set_Tech_FuelIn if y == "Power"]
+      techs = [x for (x,y) ∈ Maps.Set_Tech_FuelIn if y == "Power" && x ∉ Params.Tags.TagTechnologyToSubsets["StorageDummies"]]
       @constraint(model,
       Vars.PeakingDemand[y,r] ==
         sum(Vars.UseByTechnologyAnnual[y,t,"Power",r]/GWh_to_PJ*Params.x_peakingDemand[r,se]/8760
           #Demand per Year in PJ             to Gwh     Highest peak hour value   /number hours per year
-        for se ∈ 𝓢𝓮 for t ∈ setdiff(techs,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) if Params.x_peakingDemand[r,se] != 0 && Params.Tags.TagTechnologyToSector[t,se] != 0)
+        for se ∈ 𝓢𝓮 for t ∈ techs if Params.x_peakingDemand[r,se] != 0 && Params.Tags.TagTechnologyToSector[t,se] != 0)
       + Params.SpecifiedAnnualDemand[r,"Power",y]/GWh_to_PJ*Params.x_peakingDemand[r,"Power"]/8760,
       base_name="PC1_PowerPeakingDemand|$(y)|$(r)")
 

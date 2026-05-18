@@ -391,13 +391,14 @@ function genesysmod_levelizedcosts(model,Sets, Params, VarPar, Vars, Switch, Set
     fc2[!,:Variable] .= "Fuel Costs in EUR/MWh"
     output_fuelcosts = vcat(fc1,fc2)
 
+    f_tmp = setdiff(Sets.Fuel,Params.TagTechnologyToSubsets["Transport"])
     for r ∈ Sets.Region_full for y ∈ Sets.Year
         tmp_h2 = resourcecosts[r,"H2",y]*(1+Setting.GeneralDiscountrate[r])^(y-Sets.Year[0])
         tmp_gsynth = resourcecosts[r,"Gas_Synth",y]*(1+Setting.GeneralDiscountrate[r])^(y-Sets.Year[0])
         output_fuelcosts[r,"H2", y, tmp_h2, "Fuel Costs in MEUR/PJ"]
         output_fuelcosts[r,"Gas_Synth", y, tmp_gsynth, "Fuel Costs in MEUR/PJ"]
         for t ∈ Sets.Technology for m ∈ Sets.Mode_of_operation
-            for f ∈ setdiff(Sets.Fuel,Params.TagTechnologyToSubsets["Transport"])
+            for f ∈ f_tmp
                 capitalcosts[r,t,f,m,y] = capitalcosts[r,t,f,m,y]*3.6
                 omcosts[r,t,f,m,y] = omcosts[r,t,f,m,y]*3.6
                 discountedfuelcosts[r,t,f,m,y] = discountedfuelcosts[r,t,f,m,y]*3.6

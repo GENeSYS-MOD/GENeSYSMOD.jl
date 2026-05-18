@@ -39,9 +39,9 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         for t ∈ Sets.Technology
             Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] = 999999
     end end  =#
-
+    t_tmp = setdiff(Params.Tags.TagTechnologyToSubsets["FossilFuelGeneration"],["R_Nuclear"])
     for r ∈ Sets.Region_full
-        for t ∈ setdiff(Params.Tags.TagTechnologyToSubsets["FossilFuelGeneration"],["R_Nuclear"])
+        for t ∈ t_tmp
             if Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] == 999999
                 Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] = 0
             end
@@ -97,7 +97,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         for end_use ∈ end_uses
             Params.OutputActivityRatio[:,"Infeasibility_$(end_use)",end_use,1,:] .= 1
         end
-        
+
         Params.CapacityToActivityUnit[subset] .= 31.536
         Params.TotalAnnualMaxCapacity[:,subset,:] .= 999999
         Params.FixedCost[:,subset,:] .= 999
