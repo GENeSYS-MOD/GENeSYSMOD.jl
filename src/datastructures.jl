@@ -828,8 +828,8 @@ technology, mod of operation and/or region.
 """
 struct Variable_Parameters <: InputClass
     RateOfTotalActivity ::JuMP.Containers.DenseAxisArray
-    RateOfProductionByTechnologyByMode ::Dict
-    RateOfUseByTechnologyByMode ::Dict
+    RateOfProductionByTechnologyByMode ::Dict{Tuple,Float64}
+    RateOfUseByTechnologyByMode ::Dict{Tuple,Float64}
     RateOfProductionByTechnology ::JuMP.Containers.DenseAxisArray
     RateOfUseByTechnology ::JuMP.Containers.DenseAxisArray
     ProductionByTechnology ::JuMP.Containers.DenseAxisArray
