@@ -24,14 +24,14 @@ macro track(name, expr)
     end
 end
 
-@testset "GENeSYS-MOD" begin
+@testset verbose=true "GENeSYS-MOD" begin
     @testset "Investment Run" begin
         @track "Investment Run" include("test.jl")
     end
-    @testset "Fetch Input Data" begin
+    @testset verbose=true "Fetch Input Data" begin
         @track "Fetch Input Data" include("test_fetchdata.jl")
     end
-    @testset "Dispatch Runs" begin
+    @testset verbose=true "Dispatch Runs" begin
         @testset "Simple Dispatch" begin
             @track "Simple Dispatch" include("test_dispatch_simple.jl")
         end
