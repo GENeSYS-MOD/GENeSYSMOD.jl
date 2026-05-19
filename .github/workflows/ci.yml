@@ -22,7 +22,7 @@ jobs:
           - version: '1'  # The latest point-release (Windows)
             os: windows-latest
             arch: x64
-          - version: '1.10'  # 1.10 
+          - version: '1.12'  # minimum supported Julia (matches Project.toml [compat])
             os: ubuntu-latest
             arch: x64
     steps:
