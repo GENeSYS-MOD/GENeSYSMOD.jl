@@ -38,41 +38,41 @@ module ScenarioDataEurope
         if Switch.emissionPathway == "REPowerEU"
             for r ∈ Sets.Region_full, y ∈ Sets.Year
                 @constraint(model, Vars.ProductionByTechnologyAnnual[y,"HHI_Scrap_EAF","Heat_High_Industrial",r] <= Params.SpecifiedAnnualDemand[r,"Heat_High_Industrial",y]*0.65, base_name="ScenarioData_Europe_HHI_Scrap_EAF_Heat_High_Industrial_$(r)_$(y)")
-            end
-            for f ∈ Sets.Fuel
-                if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] != 0
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",2025] - 0.002*(y-2025)
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",2025] - 0.002*(y-2025)
+                for f ∈ Sets.Fuel
+                    if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] != 0
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_PSNG_ROAD"] - 0.002*(y-2025)
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_FRT_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_FRT_ROAD"] - 0.002*(y-2025)
+                    end
                 end
             end
         elseif Switch.emissionPathway == "NECPEssentials"
             for r ∈ Sets.Region_full, y ∈ Sets.Year
                 @constraint(model, Vars.ProductionByTechnologyAnnual[y,"HHI_Scrap_EAF","Heat_High_Industrial",r] <= Params.SpecifiedAnnualDemand[r,"Heat_High_Industrial",y]*0.6, base_name="ScenarioData_Europe_HHI_Scrap_EAF_Heat_High_Industrial_$(r)_$(y)")
-            end
-            for f ∈ Sets.Fuel
-                if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] != 0
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",2025] - 0.00175*(y-2025)
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",2025] - 0.00175*(y-2025)
+                for f ∈ Sets.Fuel
+                    if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] != 0
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_PSNG_ROAD"] - 0.00175*(y-2025)
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_FRT_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_FRT_ROAD"] - 0.00175*(y-2025)
+                    end
                 end
             end
         elseif Switch.emissionPathway == "Green"
             for r ∈ Sets.Region_full, y ∈ Sets.Year
                 @constraint(model, Vars.ProductionByTechnologyAnnual[y,"HHI_Scrap_EAF","Heat_High_Industrial",r] <= Params.SpecifiedAnnualDemand[r,"Heat_High_Industrial",y]*0.75, base_name="ScenarioData_Europe_HHI_Scrap_EAF_Heat_High_Industrial_$(r)_$(y)")
-            end
-            for f ∈ Sets.Fuel
-                if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] != 0
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",2025] - 0.00225*(y-2025)
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",2025] - 0.00225*(y-2025)
+                for f ∈ Sets.Fuel
+                    if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] != 0
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_PSNG_ROAD"] - 0.00225*(y-2025)
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_FRT_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_FRT_ROAD"] - 0.00225*(y-2025)
+                    end
                 end
             end
         elseif Switch.emissionPathway == "Trinity"
             for r ∈ Sets.Region_full, y ∈ Sets.Year
                 @constraint(model, Vars.ProductionByTechnologyAnnual[y,"HHI_Scrap_EAF","Heat_High_Industrial",r] <= Params.SpecifiedAnnualDemand[r,"Heat_High_Industrial",y]*0.5, base_name="ScenarioData_Europe_HHI_Scrap_EAF_Heat_High_Industrial_$(r)_$(y)")
-            end
-            for f ∈ Sets.Fuel
-                if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] != 0
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_PSNG_ROAD",2025] - 0.001*(y-2025)
-                    Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",y] = Params.ModalSplitByFuelAndModalType[r,f,"MT_FRT_ROAD",2025] - 0.001*(y-2025)
+                for f ∈ Sets.Fuel
+                    if y > 2025 && Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] != 0
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_PSNG_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_PSNG_ROAD"] - 0.001*(y-2025)
+                        Params.ModalSplitByFuelAndModalType[r,f,y,"MT_FRT_ROAD"] = Params.ModalSplitByFuelAndModalType[r,f,2025,"MT_FRT_ROAD"] - 0.001*(y-2025)
+                    end
                 end
             end
         end
