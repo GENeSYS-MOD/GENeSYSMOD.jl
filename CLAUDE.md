@@ -62,6 +62,21 @@ It reads scenario data from Excel, builds a large LP, solves it
 - The storage constraint block in `genesysmod_equ.jl` is the largest single
   constraint contributor and is the next structural target.
 
+## Reference implementation (GAMS)
+
+This package is a port of the original GAMS model in the separate
+**`GENeSYS_MOD.gms`** repository.
+
+- `genesysmod_equ.jl` mirrors `genesysmod_equ.gms`; constraint names match.
+  GAMS `$` conditions map to Julia `if` / guarded loops (`not X` → `== 0`);
+  parameter index order must match exactly.
+- `genesysmod_scenariodata_europe.jl` mirrors
+  `genesysmod_scenariodata_europe.gms`. In GAMS the `emissionPathway` switch
+  picks an `$ifthen` branch (`NECPEssentials` / `REPowerEU` / `Green` /
+  `Trinity`); the Julia version selects the equivalent branch by scenario.
+  The `NECPEssentials` branch adds the `NECPCapacityPlans` data, the
+  `necp_released` set, and the `NECPCapacityExpansion` constraints.
+
 ## Input data
 
 The input Excel files are generated from the separate **`GENeSYS_MOD.data`**

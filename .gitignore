@@ -7,3 +7,4 @@ test/TestData/Inputs/input_reduced_timeserie_europe_MinimalExample_globalLimit_1
 test/TestData/Inputs/*.xlsx
 *.csv
 *.log
+*.mps
