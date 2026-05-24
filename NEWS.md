@@ -1,7 +1,13 @@
 Release Notes
 =============
 
-## Unregistered
+## v4.2.0
+- Major performance and memory-efficiency improvements to the model run pipeline (build and results processing). On the Europe test case: total runtime ~-39%, peak RAM ~-39%, results-processing phase ~-94%. The optimization model is unchanged — solver objective values are identical before/after.
+- Results processing: the 6-D `RateOfProductionByTechnologyByMode` and `RateOfUseByTechnologyByMode` containers in `Variable_Parameters` are now sparse `Dict`s instead of dense `DenseAxisArray`s. Downstream code indexing these must use `get(d, key, 0.0)`.
+- Constraint generation: hoisted repeated computations and cached JuMP bound queries; `CA3c` guarded by `CanBuildTechnology`; storage constraints iterate precomputed `(tech, mode)` pairs.
+- Data loading: single-pass `make_mapping`; faster `create_daa` hierarchy fill.
+- `convert_jump_container_to_df` rewritten to iterate only non-zero entries; added a `Dict` method.
+- Added a build/solve/results time-breakdown printout to model runs.
 - Fix calculation of resource costs when using duals (not using LCOE_calc switch) for fuels that are time independant
 
 ## v4.1.1

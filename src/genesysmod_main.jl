@@ -96,14 +96,19 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     # ####### Load data from provided excel files and declarations #############
     #
 
+    _tb = Dates.now()
     Sets, Params, Emp_Sets = genesysmod_dataload(switch);
+    println("Build: dataload : ", Dates.now()-_tb); _tb = Dates.now()
     Maps = make_mapping(Sets,Params)
+    println("Build: make_mapping : ", Dates.now()-_tb); _tb = Dates.now()
     Vars=genesysmod_dec(model,Sets,Params,switch,Maps)
+    println("Build: dec : ", Dates.now()-_tb); _tb = Dates.now()
     #
     # ####### Settings for model run (Years, Regions, etc) #############
     #
 
     Settings=genesysmod_settings(Sets, Params, switch.socialdiscountrate)
+    println("Build: settings : ", Dates.now()-_tb); _tb = Dates.now()
 
     #end
     #
@@ -111,6 +116,7 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     #
 
     genesysmod_bounds(model,Sets,Params,Vars,Settings,switch,Maps)
+    println("Build: bounds : ", Dates.now()-_tb); _tb = Dates.now()
 
     #
     # ####### load additional bounds and data for certain scenarios #############
@@ -125,12 +131,14 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     else
         @warn "No scenario data for region $(switch.model_region) found at $(scn_path)!"
     end
+    println("Build: scenariodata : ", Dates.now()-_tb); _tb = Dates.now()
 
     #
     # ####### Including Equations #############
     #
 
     considered_duals = genesysmod_equ(model,Sets,Params,Vars,Emp_Sets,Settings,switch,Maps)
+    println("Build: equ : ", Dates.now()-_tb)
 
     return model, Dict("Sets" => Sets, "Params" => Params,
      "Switch" => switch, "Vars" => Vars, "Maps" => Maps, "Settings" => Settings, "ConsideredDuals" => considered_duals)
@@ -187,6 +195,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_reserve=switch_reserve,
     extr_str_results = extr_str_results, extr_str_dispatch=extr_str_dispatch,
     switch_iis=switch_iis);
+    t_build_end = Dates.now()
     Sets = case["Sets"]
     Params = case["Params"]
     Vars = case["Vars"]
@@ -205,6 +214,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         #set_optimizer_attribute(model, "Names", "no")
         set_optimizer_attribute(model, "Method", 2)
         set_optimizer_attribute(model, "BarHomogeneous", 1)
+        set_optimizer_attribute(model, "Crossover", 0)
         if solver_log
             set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
         end
@@ -239,6 +249,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     println("solver = $solver")
 
     optimize!(model)
+    t_solve_end = Dates.now()
 
     elapsed = (Dates.now() - starttime)#24#3600;
 
@@ -267,16 +278,34 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         end
 
     elseif termination_status(model) == MOI.OPTIMAL
+        _tr = Dates.now()
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars,Maps)
+        println("  Results: variable_parameter : ", Dates.now()-_tr); _tr = Dates.now()
         if switch_processed_results == 1
             genesysmod_results(model, Sets, Params, VarPar, Vars, switch,
              Settings, Maps, elapsed, switch.extr_str_results)
+            println("  Results: processed : ", Dates.now()-_tr); _tr = Dates.now()
         end
         genesysmod_results_raw(model, VarPar, Params, switch,switch.extr_str_results, switch.switch_raw_results)
+        println("  Results: raw : ", Dates.now()-_tr); _tr = Dates.now()
         genesysmod_getspecifiedduals(model,switch,switch.extr_str_results, considered_duals)
+        println("  Results: specified_duals : ", Dates.now()-_tr)
     else
         println("Termination status:", termination_status(model), ".")
     end
+
+    t_results_end = Dates.now()
+    build_ms   = Dates.value(t_build_end   - starttime)
+    solve_ms   = Dates.value(t_solve_end   - t_build_end)
+    results_ms = Dates.value(t_results_end - t_solve_end)
+    total_ms   = Dates.value(t_results_end - starttime)
+    pct(x) = total_ms == 0 ? 0.0 : round(100*x/total_ms, digits=1)
+    println("==================== Time Breakdown ====================")
+    println("Build (data load + model build) : $(round(build_ms/1000,   digits=2)) s ($(pct(build_ms))%)")
+    println("Solve (optimize!)               : $(round(solve_ms/1000,   digits=2)) s ($(pct(solve_ms))%)")
+    println("Results (VarPar + writers)      : $(round(results_ms/1000, digits=2)) s ($(pct(results_ms))%)")
+    println("Total                           : $(round(total_ms/1000,   digits=2)) s")
+    println("========================================================")
 
     return model, Dict("Sets" => Sets, "Params" => Params,
      "Switch" => switch)

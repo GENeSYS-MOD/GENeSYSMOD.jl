@@ -4,8 +4,9 @@ Internal function used in the run process after solving to compute aggregated ve
 """
 function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
     RateOfTotalActivity = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Region_full)
-    RateOfProductionByTechnologyByMode = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Mode_of_operation), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Mode_of_operation, Sets.Fuel, Sets.Region_full)
-    RateOfUseByTechnologyByMode = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Mode_of_operation), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Mode_of_operation, Sets.Fuel, Sets.Region_full)
+    # Sparse: 6D ByMode rates are mostly zero - store only nonzero entries keyed (y,l,t,m,f,r)
+    RateOfProductionByTechnologyByMode = Dict{Tuple,Float64}()
+    RateOfUseByTechnologyByMode = Dict{Tuple,Float64}()
     RateOfProductionByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
     RateOfUseByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
     ProductionByTechnology = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Year), length(Sets.Timeslice), length(Sets.Technology), length(Sets.Fuel), length(Sets.Region_full)), Sets.Year, Sets.Timeslice, Sets.Technology, Sets.Fuel, Sets.Region_full)
@@ -35,26 +36,38 @@ function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
         in_j_labels = axes(slice_in, 2)
 
         # Find positions where value > 0
-        LoopSetOutput[(r,f,y)] = [(out_i_labels[i[1]], out_j_labels[i[2]]) for i in findall(x -> x > 0, Array(slice_out))]
-        LoopSetInput[(r,f,y)]  = [(in_i_labels[i[1]],  in_j_labels[i[2]])  for i in findall(x -> x > 0, Array(slice_in))]
+        LoopSetOutput[(r,f,y)] = [(out_i_labels[i[1]], out_j_labels[i[2]]) for i in findall(>(0), slice_out.data)]
+        LoopSetInput[(r,f,y)]  = [(in_i_labels[i[1]],  in_j_labels[i[2]])  for i in findall(>(0), slice_in.data)]
     end
+
+    # Materialize solver values once instead of millions of scalar value() lookups
+    roa    = JuMP.value.(Vars.RateOfActivity)
+    curt   = JuMP.value.(Vars.CurtailedCapacity)
+    tatabm = JuMP.value.(Vars.TotalAnnualTechnologyActivityByMode)
+    tdc    = JuMP.value.(Vars.TotalDiscountedCost)
 
     for y ∈ Sets.Year for r ∈ Sets.Region_full
         for l ∈ Sets.Timeslice
             for t ∈ Sets.Technology
-                RateOfTotalActivity[y,l,t,r] = sum(JuMP.value.(Vars.RateOfActivity[y,l,t,:,r]))
+                RateOfTotalActivity[y,l,t,r] = sum(roa[y,l,t,m,r] for m ∈ Maps.Tech_MO[t]; init=0.0)
             end
             for f ∈ Sets.Fuel
                 for (t,m) ∈ LoopSetOutput[(r,f,y)]
-                    RateOfProductionByTechnologyByMode[y,l,t,m,f,r] = JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.OutputActivityRatio[r,t,f,m,y]
-                    RateOfProductionByTechnology[y,l,t,f,r] += JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.OutputActivityRatio[r,t,f,m,y]
-                    ProductionByTechnology[y,l,t,f,r] += JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.OutputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y]
-                    CurtailedEnergy[y,f,r,l] += JuMP.value(Vars.CurtailedCapacity[r,l,t,y]) * Params.OutputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y] * Params.CapacityToActivityUnit[t]
+                    prod = roa[y,l,t,m,r]*Params.OutputActivityRatio[r,t,f,m,y]
+                    if prod != 0
+                        RateOfProductionByTechnologyByMode[(y,l,t,m,f,r)] = prod
+                    end
+                    RateOfProductionByTechnology[y,l,t,f,r] += prod
+                    ProductionByTechnology[y,l,t,f,r] += prod * Params.YearSplit[l,y]
+                    CurtailedEnergy[y,f,r,l] += curt[r,l,t,y] * Params.OutputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y] * Params.CapacityToActivityUnit[t]
                 end
                 for (t,m) ∈ LoopSetInput[(r,f,y)]
-                    RateOfUseByTechnologyByMode[y,l,t,m,f,r] = JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y]*Params.TimeDepEfficiency[r,t,l,y]
-                    RateOfUseByTechnology[y,l,t,f,r] += JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y]*Params.TimeDepEfficiency[r,t,l,y]
-                    UseByTechnology[y,l,t,f,r] += JuMP.value(Vars.RateOfActivity[y,l,t,m,r])*Params.InputActivityRatio[r,t,f,m,y] * Params.YearSplit[l,y]*Params.TimeDepEfficiency[r,t,l,y]
+                    use_rate = roa[y,l,t,m,r]*Params.InputActivityRatio[r,t,f,m,y]*Params.TimeDepEfficiency[r,t,l,y]
+                    if use_rate != 0
+                        RateOfUseByTechnologyByMode[(y,l,t,m,f,r)] = use_rate
+                    end
+                    RateOfUseByTechnology[y,l,t,f,r] += use_rate
+                    UseByTechnology[y,l,t,f,r] += use_rate * Params.YearSplit[l,y]
                 end
 
                 RateOfProduction[y,l,f,r] = sum(RateOfProductionByTechnology[y,l,:,f,r])
@@ -70,12 +83,12 @@ function genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
     end end
 
     for r ∈ Sets.Region_full
-        ModelPeriodCostByRegion[r] = sum(JuMP.value.(Vars.TotalDiscountedCost[:,r]))
+        ModelPeriodCostByRegion[r] = sum(tdc[y,r] for y ∈ Sets.Year)
     end
 
     for r ∈ Sets.Region_full, t ∈ Sets.Technology, y ∈ Sets.Year
         CCSByTechnologyAnnual[r, t, y] = sum(
-            JuMP.value(Vars.TotalAnnualTechnologyActivityByMode[y,t,m,r])*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]*YearlyDifferenceMultiplier(y,Sets)* (Params.EmissionActivityRatio[r,t,m,e,y] >= 0 ? 1-Params.EmissionActivityRatio[r,t,m,e,y] : -1 * Params.EmissionActivityRatio[r,t,m,e,y]) for e ∈ Sets.Emission for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t]; init=0)
+            tatabm[y,t,m,r]*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]*YearlyDifferenceMultiplier(y,Sets)* (Params.EmissionActivityRatio[r,t,m,e,y] >= 0 ? 1-Params.EmissionActivityRatio[r,t,m,e,y] : -1 * Params.EmissionActivityRatio[r,t,m,e,y]) for e ∈ Sets.Emission for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t]; init=0)
     end
 
     VarPar = Variable_Parameters(RateOfTotalActivity, RateOfProductionByTechnologyByMode, RateOfUseByTechnologyByMode, RateOfProductionByTechnology, RateOfUseByTechnology,

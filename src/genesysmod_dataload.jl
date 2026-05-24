@@ -39,7 +39,9 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     # ####### Load from hourly Data #############
     #
 
+    _tts = Dates.now()
     GENeSYSMOD.timeseries_reduction!(Params, Sets, Switch)
+    println("Build:   timeseries_reduction : ", Dates.now()-_tts)
 
     for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
         Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
@@ -84,28 +86,47 @@ make_mapping(Sets,Params)
 Creates a mapping of the allowed combinations of technology and fuel (and revers) and mode of operations.
 """
 function make_mapping(Sets,Params)
-    Map_Tech_Fuel = Dict(t=>[f for f ∈ Sets.Fuel if (any(Params.OutputActivityRatio[:,t,f,:,:].>0)
-    || any(Params.InputActivityRatio[:,t,f,:,:].>0))] for t ∈ Sets.Technology)
+    # Single pass over activity ratio data to discover nonzero (tech,fuel) and (tech,mode) pairs
+    nonzero_out_tf = Set{Tuple{String,String}}()
+    nonzero_in_tf  = Set{Tuple{String,String}}()
+    nonzero_out_tm = Set{Tuple{String,eltype(Sets.Mode_of_operation)}}()
+    nonzero_in_tm  = Set{Tuple{String,eltype(Sets.Mode_of_operation)}}()
 
-   Map_Tech_MO = Dict(t=>[m for m ∈ Sets.Mode_of_operation if (any(Params.OutputActivityRatio[:,t,:,m,:].>0)
-    || any(Params.InputActivityRatio[:,t,:,m,:].>0))] for t ∈ Sets.Technology)
+    for r ∈ Sets.Region_full, t ∈ Sets.Technology, f ∈ Sets.Fuel,
+            m ∈ Sets.Mode_of_operation, y ∈ Sets.Year
+        if Params.OutputActivityRatio[r,t,f,m,y] != 0
+            push!(nonzero_out_tf, (t,f))
+            push!(nonzero_out_tm, (t,m))
+        end
+        if Params.InputActivityRatio[r,t,f,m,y] != 0
+            push!(nonzero_in_tf, (t,f))
+            push!(nonzero_in_tm, (t,m))
+        end
+    end
 
-   Map_Fuel_Tech = Dict(f=>[t for t ∈ Sets.Technology if (any(Params.OutputActivityRatio[:,t,f,:,:].>0)
-    || any(Params.InputActivityRatio[:,t,f,:,:].>0))] for f ∈ Sets.Fuel)
+    # Single pass over trade route data
+    nonzero_trade = Set{Tuple{String,String,String}}()
+    for r1 ∈ Sets.Region_full, r2 ∈ Sets.Region_full, f ∈ Sets.Fuel, y ∈ Sets.Year
+        if Params.TradeRoute[r1,r2,f,y] != 0 && Params.Tags.TagCanFuelBeTraded[f] != 0
+            push!(nonzero_trade, (f,r1,r2))
+        end
+    end
 
-    Set_Tech_MO = Set{Tuple{String,Int8}}([(t,m) for t ∈ Sets.Technology for m ∈ Map_Tech_MO[t]])
+    Map_Tech_Fuel = Dict(t => [f for f ∈ Sets.Fuel if (t,f) ∈ nonzero_out_tf || (t,f) ∈ nonzero_in_tf]
+                         for t ∈ Sets.Technology)
+    Map_Tech_MO   = Dict(t => [m for m ∈ Sets.Mode_of_operation if (t,m) ∈ nonzero_out_tm || (t,m) ∈ nonzero_in_tm]
+                         for t ∈ Sets.Technology)
+    Map_Fuel_Tech = Dict(f => [t for t ∈ Sets.Technology if (t,f) ∈ nonzero_out_tf || (t,f) ∈ nonzero_in_tf]
+                         for f ∈ Sets.Fuel)
 
-    Set_Tech_FuelIn = Set{Tuple{String,String}}([(t,f) for t ∈ Sets.Technology for f ∈ Sets.Fuel if (any(Params.InputActivityRatio[:,t,f,:,:].>0))])
+    Set_Tech_MO      = Set{Tuple{String,Int8}}([(t,m) for t ∈ Sets.Technology for m ∈ Map_Tech_MO[t]])
+    Set_Tech_FuelIn  = Set{Tuple{String,String}}(nonzero_in_tf)
+    Set_Tech_FuelOut = Set{Tuple{String,String}}(nonzero_out_tf)
+    Set_Tech_Fuel    = Set_Tech_FuelIn ∪ Set_Tech_FuelOut
+    Set_Fuel_Regions = Set{Tuple{String,String,String}}(nonzero_trade)
 
-    Set_Tech_FuelOut = Set{Tuple{String,String}}([(t,f) for t ∈ Sets.Technology for f ∈ Sets.Fuel if (any(Params.OutputActivityRatio[:,t,f,:,:].>0))])
-
-    Set_Tech_Fuel = Set_Tech_FuelIn ∪ Set_Tech_FuelOut
-
-    Set_Fuel_Regions = Set{Tuple{String,String,String}}([(f, r1, r2) for f ∈ Sets.Fuel
-        for r1 ∈ Sets.Region_full for r2 ∈ Sets.Region_full if (any(x-> x!=0, Params.TradeRoute[r1,r2,f,:])
-        && (Params.Tags.TagCanFuelBeTraded[f] != 0))])
-
-    return Maps(Map_Tech_Fuel,Map_Tech_MO,Map_Fuel_Tech, Set_Tech_MO, Set_Tech_FuelIn, Set_Tech_FuelOut, Set_Tech_Fuel, Set_Fuel_Regions)
+    return Maps(Map_Tech_Fuel, Map_Tech_MO, Map_Fuel_Tech, Set_Tech_MO,
+                Set_Tech_FuelIn, Set_Tech_FuelOut, Set_Tech_Fuel, Set_Fuel_Regions)
 end
 
 function read_sets(in_data, Switch, s_infeas, s_dispatch; dispatch_week=nothing)

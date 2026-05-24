@@ -1,7 +1,7 @@
 name = "GENeSYSMOD"
 uuid = "9f3a37f9-d498-4265-a124-3ae3e9ff3acf"
 authors = ["Dimitri Pinel <dimitri.pinel@sintef.no>", "Lars Hellemo <lars.hellemo@sintef.no>, Konstantin Löffler <kl@wip.tu-berlin.de>"]
-version = "4.1.1"
+version = "4.2.0"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
@@ -23,7 +23,7 @@ CSV = "^0.10.11"
 DataFrames = "^1.3.4"
 JuMP = "^1.11"
 XLSX = "^0.10.4"
-julia = "^1.10"
+julia = "^1.12"
 HiGHS = "^1.19"
 Ipopt = "^1.11"
 DocumenterTools = "^0.1"

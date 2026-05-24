@@ -42,8 +42,8 @@ function genesysmod_results_raw(model, VarPar, Params, Switch, extr_str, s_rawre
         objective = objective_value(model)
         println(file, "Objective = $objective")
         for v in all_variables(model)
-            if value.(v) > 0
-                val = value.(v)
+            val = value(v)
+            if val > 0
                 str = string(v)
                 println(file, "$str = $val")
             end
@@ -86,8 +86,11 @@ end
 function genesysmod_getspecifiedduals(model,Switch,extr_str, specified_constraints)
     df=DataFrames.DataFrame(names=[],values=[])
     for con in specified_constraints
-        if dual(constraint_by_name(model,con)) != 0 && name(constraint_by_name(model,con)) != ""
-            push!(df,(name(constraint_by_name(model,con)),dual(constraint_by_name(model,con))))
+        c = constraint_by_name(model,con)
+        d = dual(c)
+        n = name(c)
+        if d != 0 && n != ""
+            push!(df,(n,d))
         end
     end
     date = Dates.now()

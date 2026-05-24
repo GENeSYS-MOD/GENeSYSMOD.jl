@@ -14,22 +14,32 @@ const TEST_RESULTS_DIR = joinpath(pkgdir(GENeSYSMOD),"test","TestData","Results"
 # if left blank, it will clone the GENeSYS-MOD.data repository to the main folder of GENeSYSMOD.jl
 const DATA_REPO_DIR = nothing
 
-@testset "GENeSYS-MOD" begin
+macro track(name, expr)
+    quote
+        GC.gc()
+        pre_rss = Sys.maxrss()
+        stats = @timed $(esc(expr))
+        post_rss = Sys.maxrss()
+        @info $name time_s=round(stats.time, digits=2) alloc_MiB=round(stats.bytes/1024^2, digits=1) peak_rss_MiB=round(post_rss/1024^2, digits=1) rss_delta_MiB=round((post_rss-pre_rss)/1024^2, digits=1)
+    end
+end
+
+@testset verbose=true "GENeSYS-MOD" begin
     @testset "Investment Run" begin
-        include("test.jl")
+        @track "Investment Run" include("test.jl")
     end
-    @testset "Fetch Input Data" begin
-        include("test_fetchdata.jl")
+    @testset verbose=true "Fetch Input Data" begin
+        @track "Fetch Input Data" include("test_fetchdata.jl")
     end
-    @testset "Dispatch Runs" begin
+    @testset verbose=true "Dispatch Runs" begin
         @testset "Simple Dispatch" begin
-            include("test_dispatch_simple.jl")
+            @track "Simple Dispatch" include("test_dispatch_simple.jl")
         end
         @testset "One Node Storage Dispatch" begin
-            include("test_dispatch_onenodestorage.jl")
+            @track "One Node Storage Dispatch" include("test_dispatch_onenodestorage.jl")
         end
         @testset "Two Nodes Dispatch" begin
-            include("test_dispatch_twonodes.jl")
+            @track "Two Nodes Dispatch" include("test_dispatch_twonodes.jl")
         end
     end
 end
