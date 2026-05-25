@@ -3,6 +3,11 @@ module ScenarioDataEurope
     export genesysmod_scenariodata
 
     function genesysmod_scenariodata(model,Sets,Params,Maps,Vars,Switch)
+        # The EnVis-europe scenario bounds below apply only to the EnVis emission
+        # pathways. Other pathways (e.g. MinimalExample, used by the test suite) must
+        # skip them, otherwise the forced lower bounds over-constrain the model.
+        envis = Switch.emissionPathway ∈ ("NECPEssentials", "REPowerEU", "Green", "Trinity")
+
         if "X_DAC_HT" ∈ Sets.Technology
             Params.AvailabilityFactor[:,"X_DAC_HT",:] .= 0
         end
@@ -91,6 +96,7 @@ module ScenarioDataEurope
             end
         end
 
+        if envis
         # Limit capacity expansion in 2025 to only actually (historically) installed capacities
         # (matches GAMS: clamp only when BOTH AnnualMinNewCapacity and TotalAnnualMinCapacity are 0).
         # NECP-planned RES techs are exempt (GAMS NewCapacity.up = +INF).
@@ -167,6 +173,7 @@ module ScenarioDataEurope
                 isempty(techs) && continue
                 @constraint(model, sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ techs) == plan, base_name="NECPCapacityExpansion|$(r)|$(sub)|$(y)")
             end
+        end
         end
     end
 end
