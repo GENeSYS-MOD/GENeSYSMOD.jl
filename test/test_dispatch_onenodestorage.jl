@@ -29,7 +29,7 @@ switch_dispatch = OneNodeStorage("DE"),
 model_region="europe",
 dispatch_week=1,
 solver_log=false,
-solver_attr=Dict("solver" => "simplex")
+solver_attr=Dict("solver" => "simplex", "primal_feasibility_tolerance" => 1e-5, "dual_feasibility_tolerance" => 1e-5)
 );
 
 @test termination_status(model) == MOI.OPTIMAL
