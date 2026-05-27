@@ -8,7 +8,8 @@ Release Notes
 - Data loading: single-pass `make_mapping`; faster `create_daa` hierarchy fill.
 - `convert_jump_container_to_df` rewritten to iterate only non-zero entries; added a `Dict` method.
 - Added a build/solve/results time-breakdown printout to model runs.
-- Fix calculation of resource costs when using duals (not using LCOE_calc switch) for fuels that are time independant
+- Fix calculation of resource costs when using duals (not using LCOE_calc switch) for fuels that are time independant.
+- Implementing changes of [PR 38 of the GAMS version](https://github.com/GENeSYS-MOD/GENeSYS_MOD.gms/pull/38) to be aligned between both.
 
 ## v4.1.1
 - Fixed an issue with the testing scripts when installing via package 
