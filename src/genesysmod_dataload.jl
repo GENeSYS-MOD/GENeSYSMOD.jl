@@ -198,6 +198,8 @@ function read_tags(in_data, Sets, Switch, s_infeas, s_dispatch)
 
     TagTechnologyToSubsets = read_subsets(in_data, "Par_TagTechnologyToSubsets") #TODO handle the tags consistently: now we have lists of technology in one and DAA of tech, subsets and 1. Some parameters seems also redundant.
     TagFuelToSubsets = read_subsets(in_data, "Par_TagFuelToSubsets")
+TagRegionToSubsets = "Par_TagRegionToSubsets" ∈ XLSX.sheetnames(in_data) ?
+        read_subsets(in_data, "Par_TagRegionToSubsets") : Dict{String,Array{String}}()
     TagDemandFuelToSector = create_daa(in_data, "Par_TagDemandFuelToSector", 𝓕, 𝓢𝓮)
     TagElectricTechnology = create_daa(in_data, "Par_TagElectricTechnology", 𝓣)
     TagTechnologyToModalType = create_daa(in_data, "Par_TagTechnologyToModalType", 𝓣, 𝓜, 𝓜𝓽)
@@ -209,7 +211,7 @@ function read_tags(in_data, Sets, Switch, s_infeas, s_dispatch)
     TagModalTypeToModalGroups = create_daa(in_data, "Par_TagModalTypeToModalGroups", 𝓜𝓽, ["TransportModes","ModalSubgroups"])
     TagCanFuelBeTraded = create_daa(in_data, "Par_TagCanFuelBeTraded", 𝓕)
 
-    tags = Tags(TagTechnologyToSubsets,TagFuelToSubsets,TagDemandFuelToSector,TagElectricTechnology,
+    tags = Tags(TagTechnologyToSubsets,TagFuelToSubsets,TagRegionToSubsets,TagDemandFuelToSector,TagElectricTechnology,
     TagTechnologyToModalType,TagTechnologyToSector,RETagTechnology,RETagFuel,TagDispatchableTechnology,
     TagModalTypeToModalGroups,TagCanFuelBeTraded)
 
@@ -434,8 +436,8 @@ function read_params(in_data, Sets, Switch, Tags)
         ProductionChangeCost = create_daa(in_data, "Par_ProductionChangeCost",𝓣,𝓨)
         MinActiveProductionPerTimeslice = DenseArray(zeros(length(𝓨), length(𝓛), length(𝓕), length(𝓣), length(𝓡)), 𝓨, 𝓛, 𝓕, 𝓣, 𝓡)
 
-        MinActiveProductionPerTimeslice[:,:,"Power","RES_Hydro_Large",:] .= 0.1
-        MinActiveProductionPerTimeslice[:,:,"Power","RES_Hydro_Small",:] .= 0.05
+        MinActiveProductionPerTimeslice[:,:,"Power","P_Hydro_Reservoir",:] .= 0.1
+        MinActiveProductionPerTimeslice[:,:,"Power","P_Hydro_RoR",:] .= 0.05
     else
         RampingUpFactor = nothing
         RampingDownFactor = nothing
@@ -488,6 +490,7 @@ function read_params(in_data, Sets, Switch, Tags)
     StorageLevelStart,MinStorageCharge,
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity, NewCapacityExpansionStop,TotalAnnualMinCapacity,
+GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
@@ -590,6 +593,11 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     NewCapacityExpansionStop = JuMP.Containers.DenseAxisArray(zeros(length(𝓡),length(𝓣)), 𝓡, 𝓣)
 
     TotalAnnualMinCapacity = aggregate_daa(Params_Full.TotalAnnualMinCapacity, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
+# Group capacity limits — dispatch path: dataset-defined subset axes don't change with
+    # region slicing, so just slice the year dimension (subsets stay; sub-region totals will
+    # be checked against the same group limits as the full model).
+    GroupTotalAnnualMaxCapacity = Params_Full.GroupTotalAnnualMaxCapacity[:,:,𝓨]
+    GroupTotalAnnualMinCapacity = Params_Full.GroupTotalAnnualMinCapacity[:,:,𝓨]
     TotalTechnologyAnnualActivityUpperLimit = aggregate_daa(Params_Full.TotalTechnologyAnnualActivityUpperLimit, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
     TotalTechnologyAnnualActivityLowerLimit = aggregate_daa(Params_Full.TotalTechnologyAnnualActivityLowerLimit, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = aggregate_daa(Params_Full.TotalTechnologyModelPeriodActivityUpperLimit, 𝓡, 𝓡_full, Sum(), 𝓣)
@@ -663,6 +671,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,
     NewCapacityExpansionStop,TotalAnnualMinCapacity,
+GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,

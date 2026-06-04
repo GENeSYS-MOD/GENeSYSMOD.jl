@@ -9,6 +9,7 @@ Tags - The different tags used in the model to map across sets and subsets
 struct Tags <: InputClass
     TagTechnologyToSubsets::Dict{String,Array{String}}
     TagFuelToSubsets::Dict{String,Array{String}}
+TagRegionToSubsets::Dict{String,Array{String}}
     TagDemandFuelToSector::JuMP.Containers.DenseAxisArray
     TagElectricTechnology::JuMP.Containers.DenseAxisArray
     TagTechnologyToModalType::JuMP.Containers.DenseAxisArray
@@ -320,6 +321,12 @@ struct Parameters <: InputClass
     TotalAnnualMaxCapacity ::JuMP.Containers.DenseAxisArray
     NewCapacityExpansionStop ::JuMP.Containers.DenseAxisArray
     TotalAnnualMinCapacity ::JuMP.Containers.DenseAxisArray
+
+    # Aggregated upper / lower limit on TotalCapacityAnnual summed over a
+    # technology subset × region subset (e.g. all solar in USA). Indexed by
+    # (TechSubset, RegionSubset, Year). Max defaults to 999999 (=no limit).
+    GroupTotalAnnualMaxCapacity ::JuMP.Containers.DenseAxisArray
+    GroupTotalAnnualMinCapacity ::JuMP.Containers.DenseAxisArray
 
     AnnualSectoralEmissionLimit ::JuMP.Containers.DenseAxisArray
 

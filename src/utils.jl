@@ -401,10 +401,15 @@ directory and is named iis.txt. The function compute_conflict!(model) must be ru
 The iis contains the set of constraint causing the infeasibility.
 """
 function print_iis(model;filename="iis")
+    # Query per-constraint conflict status from the MOI backend rather than via
+    # get_attribute(con, ...). MathOptIIS leaves the model flagged "modified
+    # since optimize!", which makes the JuMP-level query throw OptimizeNotCalled.
+    # The backend (a CachingOptimizer) maps indices and skips that guard.
+    b = JuMP.backend(model)
     list_of_conflicting_constraints = ConstraintRef[]
     for (F, S) in list_of_constraint_types(model)
         for con in all_constraints(model, F, S)
-            if get_attribute(con, MOI.ConstraintConflictStatus()) == MOI.IN_CONFLICT
+            if MOI.get(b, MOI.ConstraintConflictStatus(), JuMP.index(con)) == MOI.IN_CONFLICT
                 push!(list_of_conflicting_constraints, con)
             end
         end
@@ -415,6 +420,7 @@ function print_iis(model;filename="iis")
             write(file, string(r)*"\n")
         end
     end
+    return list_of_conflicting_constraints
 end
 
 """
