@@ -264,19 +264,36 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     if occursin("INFEASIBLE",string(termination_status(model)))
         if switch_iis == 1
                             println("Termination status:", termination_status(model), ". Computing IIS")
-                compute_conflict!(model)
+            try
 # MathOptIIS (what current HiGHS.jl uses for compute_conflict!)
             # modifies the model internally while running its elastic filter, so
             # JuMP flags the model "modified since optimize!" and a normal
             # get_attribute(model, ConflictStatus()) throws OptimizeNotCalled.
-            # Query the MOI backend directly to bypass that guard. This path also
-            # works for Gurobi/CPLEX native IIS, so all solvers share it.
+                # Query the MOI backend directly to bypass that guard. This path
+                # also works for Gurobi/CPLEX native IIS, so all solvers share it.
+                compute_conflict!(model)
             cstatus = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
             if cstatus == MOI.CONFLICT_FOUND
                 println("Saving IIS to file")
                 print_iis(model; filename=joinpath(resultdir,"IIS_$(elmod_nthhour)_$(today())"))
             else
                         println("No conflict found: ", cstatus)
+                end
+            catch e
+                # Older HiGHS.jl (< 1.19) does not expose MathOptIIS, so the
+                # call above errors. Fall back to the legacy `violations`
+                # writer for HiGHS. Any other solver should surface the error.
+                if occursin("HiGHS", string(solver))
+                    println("IIS query failed ($(typeof(e).name.name)) — falling back to violations writer.")
+                    res = violations(model)
+                    open(joinpath(resultdir,"IIS_$(elmod_nthhour)_$(today()).txt"), "w") do f
+                        for line in res
+                            println(f, line)
+                        end
+                    end
+                else
+                    rethrow(e)
+                end
             end
         else
             error("Model infeasible. Turn on 'switch_iis' to compute and write the iis file")
