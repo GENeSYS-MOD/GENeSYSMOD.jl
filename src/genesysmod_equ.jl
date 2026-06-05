@@ -823,11 +823,11 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   # over a technology subset (Tags.TagTechnologyToSubsets) intersected with a
   # region subset (Tags.TagRegionToSubsets), per year. Use 999999 sentinel for
   # "no upper limit" (matches TCC1 convention); 0 lower limit is inert.
-  for ts ∈ keys(Params.Tags.TagTechnologyToSubsets)
-    techs_in_subset = intersect(Params.Tags.TagTechnologyToSubsets[ts], 𝓣)
+  for (ts, techs) ∈ Params.Tags.TagTechnologyToSubsets
+    techs_in_subset = intersect(techs, 𝓣)
     isempty(techs_in_subset) && continue
-    for rs ∈ keys(Params.Tags.TagRegionToSubsets)
-      regs_in_subset = intersect(Params.Tags.TagRegionToSubsets[rs], 𝓡)
+    for (rs, regs) ∈ Params.Tags.TagRegionToSubsets
+      regs_in_subset = intersect(regs, 𝓡)
       isempty(regs_in_subset) && continue
       for y ∈ 𝓨
         if Params.GroupTotalAnnualMaxCapacity[ts,rs,y] < 999999
