@@ -378,6 +378,18 @@ function read_params(in_data, Sets, Switch, Tags)
     TotalAnnualMaxCapacity = create_daa(in_data, "Par_TotalAnnualMaxCapacity", 𝓡, 𝓣, 𝓨)
     NewCapacityExpansionStop = create_daa(in_data, "Par_NewCapacityExpansionStop", 𝓡, 𝓣)
     TotalAnnualMinCapacity = create_daa(in_data, "Par_TotalAnnualMinCapacity", 𝓡, 𝓣, 𝓨)
+
+    # Aggregated capacity limits over (tech subset, region subset, year). Axes
+    # use the keys of the subset dictionaries; empty dataset (no rows) leaves
+    # max at 999999 sentinel (= no limit) and min at 0.
+    𝓣𝓼 = collect(keys(Tags.TagTechnologyToSubsets))
+    𝓡𝓼 = collect(keys(Tags.TagRegionToSubsets))
+    GroupTotalAnnualMaxCapacity = "Par_GroupTotalAnnualMaxCapacity" ∈ XLSX.sheetnames(in_data) ?
+        create_daa_init(in_data, "Par_GroupTotalAnnualMaxCapacity", 999999, 𝓣𝓼, 𝓡𝓼, 𝓨) :
+        DenseArray(fill(999999.0, length(𝓣𝓼), length(𝓡𝓼), length(𝓨)), 𝓣𝓼, 𝓡𝓼, 𝓨)
+    GroupTotalAnnualMinCapacity = "Par_GroupTotalAnnualMinCapacity" ∈ XLSX.sheetnames(in_data) ?
+        create_daa(in_data, "Par_GroupTotalAnnualMinCapacity", 𝓣𝓼, 𝓡𝓼, 𝓨) :
+        DenseArray(zeros(length(𝓣𝓼), length(𝓡𝓼), length(𝓨)), 𝓣𝓼, 𝓡𝓼, 𝓨)
     TotalTechnologyAnnualActivityUpperLimit = create_daa(in_data, "Par_TotalAnnualMaxActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyAnnualActivityLowerLimit = create_daa(in_data, "Par_TotalAnnualMinActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = create_daa_init(in_data, "Par_ModelPeriodActivityMaxLimit", 999999, 𝓡, 𝓣)
