@@ -43,8 +43,15 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     GENeSYSMOD.timeseries_reduction!(Params, Sets, Switch)
     println("Build:   timeseries_reduction : ", Dates.now()-_tts)
 
-    for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
-        Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
+    # switch_endogenous_specifieddemandforecasting:
+    #   1 (default) → legacy behaviour: overwrite per-year SpecifiedAnnualDemand
+    #       with base-year × compounded SpecifiedDemandDevelopment growth (skips
+    #       H2 which is solved endogenously elsewhere).
+    #   0 → use per-year values from Par_SpecifiedAnnualDemand directly.
+    if Switch.switch_endogenous_specifieddemandforecasting == 1
+        for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
+            Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
+        end
     end
 
     # Same math as the former scalar loops, but on .data with axis positions

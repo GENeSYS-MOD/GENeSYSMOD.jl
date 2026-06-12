@@ -33,6 +33,11 @@ Release Notes
   noise rows produced by barrier runs without crossover. Fixed `output_model` writing
   literal `:Col => value` Pair strings into every cell; elapsed time is now numeric
   seconds.
+- New `switch_endogenous_specifieddemandforecasting` (default 1 = unchanged legacy
+  behaviour: demand for later years is forecast from the base year via
+  `SpecifiedDemandDevelopment` growth). Set to 0 to use the per-year values from
+  `Par_SpecifiedAnnualDemand` directly — for datasets that provide explicit demand
+  trajectories per year.
 - `load_reduced_timeserie = 1` skips the timeseries-reduction NLP and loads a
   previously written reduced timeseries from `inputdir` (pairs with
   `write_reduced_timeserie`).

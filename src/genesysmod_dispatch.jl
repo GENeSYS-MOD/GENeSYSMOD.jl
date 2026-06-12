@@ -15,7 +15,7 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
         elmod_dunkelflaute = 0, switch_raw_results = CSVResult(), switch_processed_results = 1, switch_LCOE_calc=0,
         switch_dispatch = OneNodeSimple("DE"), extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",
         switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1,dispatch_week=nothing,
-        switch_errorcheck=2, switch_results_db=0)
+        switch_errorcheck=2, switch_results_db=0, switch_endogenous_specifieddemandforecasting=1)
 
     elmod_daystep = elmod_nthhour ÷ 24
     elmod_hourstep = elmod_nthhour % 24
@@ -86,7 +86,8 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
     extr_str_dispatch,
     switch_reserve,
     switch_errorcheck,
-    switch_results_db)
+    switch_results_db,
+    switch_endogenous_specifieddemandforecasting)
 
     starttime= Dates.now()
     model= JuMP.Model()

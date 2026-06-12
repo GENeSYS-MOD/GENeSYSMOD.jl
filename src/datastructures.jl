@@ -795,6 +795,12 @@ run that will be read to fix some decision variables.\n
   from every table (so runs writing fewer tables leave no stale rows), a new scenario
   name appends. Handles are released at the end of the run (`release_dbs`); writes
   blocked by an external reader (Tableau, DBeaver) are queued for `retry_db_writes()`.\n
+- **`switch_endogenous_specifieddemandforecasting ::Int8`** If 1 (default),
+  SpecifiedAnnualDemand for years after the start year is overwritten using the base
+  year value compounded by SpecifiedDemandDevelopment (legacy behaviour, unchanged).
+  If 0, the per-year values read from `Par_SpecifiedAnnualDemand` are used directly,
+  so each year reflects the input data instead of being derived from year 1 — note
+  that datasets without per-year rows would then see zero demand in later years.\n
 """
 struct Switch <: InputClass
     StartYear :: Int16
@@ -850,6 +856,7 @@ struct Switch <: InputClass
     switch_reserve ::Int16
     switch_errorcheck ::Int8
     switch_results_db ::Int8
+    switch_endogenous_specifieddemandforecasting ::Int8
 end
 
 """

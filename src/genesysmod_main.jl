@@ -17,6 +17,7 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8,
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, load_reduced_timeserie = 0, switch_LCOE_calc=0,
     switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
+    switch_endogenous_specifieddemandforecasting=1,
     extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1)
 
     if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
@@ -91,7 +92,8 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     extr_str_dispatch,
     switch_reserve,
     switch_errorcheck,
-    switch_results_db)
+    switch_results_db,
+    switch_endogenous_specifieddemandforecasting)
 
     model= JuMP.Model()
 
@@ -177,6 +179,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8,
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, load_reduced_timeserie = 0, switch_LCOE_calc=0,
     switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
+    switch_endogenous_specifieddemandforecasting=1,
     extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1, solver_log=true, solver_attr=Dict(),
     switch_test_data_load=0, switch_dump_input_data=0)
 
@@ -207,6 +210,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_processed_results = switch_processed_results, write_reduced_timeserie = write_reduced_timeserie, load_reduced_timeserie = load_reduced_timeserie,
     switch_LCOE_calc=switch_LCOE_calc,
     switch_reserve=switch_reserve, switch_errorcheck=switch_errorcheck, switch_results_db=switch_results_db,
+    switch_endogenous_specifieddemandforecasting=switch_endogenous_specifieddemandforecasting,
     extr_str_results = extr_str_results, extr_str_dispatch=extr_str_dispatch,
     switch_iis=switch_iis);
     t_build_end = Dates.now()
