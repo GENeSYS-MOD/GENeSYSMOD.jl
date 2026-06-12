@@ -323,7 +323,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
                 Params.ProductionChangeCost[r,t,y] = 0
             end =#
             for l ∈ Sets.Timeslice
-                Params.MinActiveProductionPerTimeslice[y,l,"Power","RES_Hydro_Large",r] = 0.1
+                Params.MinActiveProductionPerTimeslice[y,l,"Power","P_Hydro_Reservoir",r] = 0.1
                 Params.MinActiveProductionPerTimeslice[y,l,"Power","P_Hydro_RoR",r] = 0.05
             end
         end end

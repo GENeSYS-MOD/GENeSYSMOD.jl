@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+## v4.3.0
+- Added a new tag ``TagRegionToSubsets``, two new parameters ``GroupTotalAnnualMaxCapacity`` and ``GroupTotalAnnualMinCapacity``, as well as two new constraints ``TCC3`` and ``TCC4``. These are fully optional, but allow for flexible creation of aggregated upper and lower bounds for installed capacities.
+- Improved iis handling behavior, especially with the open HiGHS solver.
+- Fixed an issue with old technology names in ramping bounds. 
+
 ## v4.2.0
 - Major performance and memory-efficiency improvements to the model run pipeline (build and results processing). On the Europe test case: total runtime ~-39%, peak RAM ~-39%, results-processing phase ~-94%. The optimization model is unchanged — solver objective values are identical before/after.
 - Results processing: the 6-D `RateOfProductionByTechnologyByMode` and `RateOfUseByTechnologyByMode` containers in `Variable_Parameters` are now sparse `Dict`s instead of dense `DenseAxisArray`s. Downstream code indexing these must use `get(d, key, 0.0)`.

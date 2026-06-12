@@ -818,6 +818,33 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
       @constraint(model, Vars.TotalCapacityAnnual[y,t,r] >= Params.TotalAnnualMinCapacity[r,t,y], base_name="TCC2_TotalAnnualMinCapacityConstraint|$(y)|$(t)|$(r)")
     end
   end end end
+
+  # TCC3 / TCC4: aggregated upper / lower limit on TotalCapacityAnnual summed
+  # over a technology subset (Tags.TagTechnologyToSubsets) intersected with a
+  # region subset (Tags.TagRegionToSubsets), per year. Use 999999 sentinel for
+  # "no upper limit" (matches TCC1 convention); 0 lower limit is inert.
+  for (ts, techs) ∈ Params.Tags.TagTechnologyToSubsets
+    techs_in_subset = intersect(techs, 𝓣)
+    isempty(techs_in_subset) && continue
+    for (rs, regs) ∈ Params.Tags.TagRegionToSubsets
+      regs_in_subset = intersect(regs, 𝓡)
+      isempty(regs_in_subset) && continue
+      for y ∈ 𝓨
+        if Params.GroupTotalAnnualMaxCapacity[ts,rs,y] < 999999
+          @constraint(model,
+            sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ techs_in_subset for r ∈ regs_in_subset)
+              <= Params.GroupTotalAnnualMaxCapacity[ts,rs,y],
+            base_name="TCC3_GroupMaxCapacityConstraint|$(y)|$(ts)|$(rs)")
+        end
+        if Params.GroupTotalAnnualMinCapacity[ts,rs,y] > 0
+          @constraint(model,
+            sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ techs_in_subset for r ∈ regs_in_subset)
+              >= Params.GroupTotalAnnualMinCapacity[ts,rs,y],
+            base_name="TCC4_GroupMinCapacityConstraint|$(y)|$(ts)|$(rs)")
+        end
+      end
+    end
+  end
   print("Cstr: Tot. Cap. : ",Dates.now()-start,"\n")
 
   ############### New Capacity Constraints ##############

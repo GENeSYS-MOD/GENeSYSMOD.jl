@@ -17,7 +17,7 @@ end
         @test sum([startswith(file,"Timeseries") for file in files]) == 1
     end
     @testset "Specific older version and dataset" begin
-        fetch_data_release(;version_tag="v1.0.4", dataset_name="Europe_EnVis_Green", dest_dir=TEST_RESULTS_DIR)
+        fetch_data_release(;version_tag="v1.1.0", dataset_name="Europe_EnVis_Green", dest_dir=TEST_RESULTS_DIR)
         files = readdir(TEST_RESULTS_DIR)
         @test sum([startswith(file,"RegularParameters_Europe_EnVis_Green") for file in files]) == 1
         @test sum([startswith(file,"Timeseries_Europe_EnVis_Green") for file in files]) == 1

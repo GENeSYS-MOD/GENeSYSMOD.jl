@@ -229,7 +229,12 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     elseif solver_name(model) == "HiGHS"
         set_optimizer_attribute(model, "solver", "ipm")
         #set_optimizer_attribute(model, "solver", "pdlp")
-        set_optimizer_attribute(model, "run_crossover", "off")
+        set_optimizer_attribute(model, "run_crossover", "on")
+        # IIS strategy: bit2 (elastic IS) | bit8 (true IIS) = 10. Set here,
+        # pre-solve, so it never dirties the model after optimize!. Consumed by
+        # HiGHS native IIS; the MathOptIIS fallback used by current HiGHS.jl
+        # ignores it, but it is harmless and future-proofs the native path.
+        set_optimizer_attribute(model, "iis_strategy", 10)
         if solver_log
             set_optimizer_attribute(model, "log_file", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
         end
@@ -258,19 +263,36 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     #
     if occursin("INFEASIBLE",string(termination_status(model)))
         if switch_iis == 1
-            if occursin("Gurobi",string(solver)) || occursin("CPLEX",string(solver))
-                println("Termination status:", termination_status(model), ". Computing IIS")
+                            println("Termination status:", termination_status(model), ". Computing IIS")
+            try
+# MathOptIIS (what current HiGHS.jl uses for compute_conflict!)
+            # modifies the model internally while running its elastic filter, so
+            # JuMP flags the model "modified since optimize!" and a normal
+            # get_attribute(model, ConflictStatus()) throws OptimizeNotCalled.
+                # Query the MOI backend directly to bypass that guard. This path
+                # also works for Gurobi/CPLEX native IIS, so all solvers share it.
                 compute_conflict!(model)
+            cstatus = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
+            if cstatus == MOI.CONFLICT_FOUND
                 println("Saving IIS to file")
-                print_iis(model)
-            elseif occursin("HiGHS",string(solver))
-                println("Termination status:", termination_status(model), ". Printing violations:")
-                res = violations(model)
-                println("Saving violations to file")
-                open(joinpath(resultdir,"IIS_$(elmod_nthhour)_$(today()).txt"), "w") do f
-                    for line in res
-                        println(f, line)
+                print_iis(model; filename=joinpath(resultdir,"IIS_$(elmod_nthhour)_$(today())"))
+            else
+                        println("No conflict found: ", cstatus)
+                end
+            catch e
+                # Older HiGHS.jl (< 1.19) does not expose MathOptIIS, so the
+                # call above errors. Fall back to the legacy `violations`
+                # writer for HiGHS. Any other solver should surface the error.
+                if occursin("HiGHS", string(solver))
+                    println("IIS query failed ($(typeof(e).name.name)) — falling back to violations writer.")
+                    res = violations(model)
+                    open(joinpath(resultdir,"IIS_$(elmod_nthhour)_$(today()).txt"), "w") do f
+                        for line in res
+                            println(f, line)
+                        end
                     end
+                else
+                    rethrow(e)
                 end
             end
         else
