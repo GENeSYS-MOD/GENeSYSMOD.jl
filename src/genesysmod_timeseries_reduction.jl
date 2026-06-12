@@ -311,10 +311,16 @@ function timeseries_reduction!(Params, Sets, Switch)
             if smoothing_range[cde] == 0
                 SmoothedCountryData[cde] = CountryData[cde]
             elseif smoothing_range[cde] > 0
+                # Direct ±range window bounds instead of scanning every timeslice
+                # per j (O(L·w) vs O(L²)); same k order + per-term factor, so the
+                # float accumulation is bit-identical to the filtered generator.
+                w = smoothing_range[cde]
                 for j ∈ eachindex(Sets.Timeslice)
+                    lo = max(firstindex(Sets.Timeslice), j - w)
+                    hi = min(lastindex(Sets.Timeslice), j + w)
                     SmoothedCountryData[cde][Sets.Timeslice[j],r] = sum(CountryData[cde][Sets.Timeslice[k],r]*
                     (1+((switch_dunkelflaute ==1 && Dunkelflaute[cde][Sets.Timeslice[j],r] > 0) ? -1+Dunkelflaute[cde][Sets.Timeslice[j],r] : 0))
-                    for k ∈ eachindex(Sets.Timeslice) if ((k >= j - smoothing_range[cde]) && (k <= j + smoothing_range[cde]))) / sum(1 for k ∈ eachindex(Sets.Timeslice) if ((k >= j - smoothing_range[cde]) && (k <= j + smoothing_range[cde])))
+                    for k ∈ lo:hi) / (hi - lo + 1)
                 end
             end
         end

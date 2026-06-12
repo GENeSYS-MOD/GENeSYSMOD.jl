@@ -132,15 +132,9 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
                 Params.AvailabilityFactor[r,t,y] = 1
     end end end =#
 
-    for r ∈ Sets.Region_full
-        for t ∈ Sets.Technology
-            if t ∈ Params.Tags.TagTechnologyToSubsets["ImportTechnology"]
-                for l ∈ Sets.Timeslice
-                    for y ∈ Sets.Year
-                        Params.CapacityFactor[r,t,l,y] = 1
-                    end
-                end
-    end end end
+    let import_techs = intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["ImportTechnology"])
+        isempty(import_techs) || (Params.CapacityFactor[:, import_techs, :, :] .= 1)
+    end
 
     for r ∈ Sets.Region_full
         for t ∈ Params.Tags.TagTechnologyToSubsets["ImportTechnology"]
