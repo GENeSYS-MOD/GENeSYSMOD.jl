@@ -303,7 +303,10 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     # rows pushed positionally — pushing a vector of Pairs stores the Pair
     # itself in each cell (that bug shipped ":Type => ..." strings in the CSV).
     # Elapsed time stored as seconds so the Value column stays numeric.
-    colnames = [:Type, :PathwayScenario, :Pathway, :Scenario, :Value]
+    # :EmissionScenario, not :Scenario — the results database reserves the
+    # Scenario column for the run key (extr_str), and scenario purging matches
+    # on it; a same-named column here would shadow that key.
+    colnames = [:Type, :PathwayScenario, :Pathway, :EmissionScenario, :Value]
     output_model = DataFrame([name => [] for name in colnames])
     push!(output_model, ["Objective Value","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", JuMP.objective_value(model)])
     push!(output_model, ["Elapsed Time [s]","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", Dates.value(Dates.Millisecond(elapsed))/1000])
