@@ -1041,7 +1041,17 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
         "output_energydemandstatistics" => _round4(output_energydemandstatistics),
     )
 
-    for (tname, df) in processed_tables
-        CSV.write(joinpath(Switch.resultdir[],"$(tname)_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), df)
+    # switch_processed_results gates the CSVs, switch_results_db the database
+    if Switch.switch_processed_results == 1
+        for (tname, df) in processed_tables
+            CSV.write(joinpath(Switch.resultdir[],"$(tname)_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), df)
+        end
+    end
+
+    if Switch.switch_results_db == 1
+        _db_attempt("processed results (scenario '$(extr_str)')") do
+            write_processed_results_db(processed_tables, Sets, Switch, extr_str)
+            println("Processed results written to $(_results_db_path(Switch)) (scenario '$(extr_str)')")
+        end
     end
 end

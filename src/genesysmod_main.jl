@@ -16,7 +16,7 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     switch_employment_calculation = 0, switch_endogenous_employment = 0,
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8,
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, load_reduced_timeserie = 0, switch_LCOE_calc=0,
-    switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2,
+    switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
     extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1)
 
     if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
@@ -90,7 +90,8 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     extr_str_results,
     extr_str_dispatch,
     switch_reserve,
-    switch_errorcheck)
+    switch_errorcheck,
+    switch_results_db)
 
     model= JuMP.Model()
 
@@ -175,8 +176,9 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_employment_calculation = 0, switch_endogenous_employment = 0,
     employment_data_file = "", elmod_nthhour = 0, elmod_starthour = 8,
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, load_reduced_timeserie = 0, switch_LCOE_calc=0,
-    switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2,
-    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1, solver_log=true, solver_attr=Dict())
+    switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
+    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1, solver_log=true, solver_attr=Dict(),
+    switch_test_data_load=0, switch_dump_input_data=0)
 
     starttime = Dates.now()
 
@@ -204,7 +206,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     elmod_dunkelflaute = elmod_dunkelflaute, switch_raw_results = switch_raw_results,
     switch_processed_results = switch_processed_results, write_reduced_timeserie = write_reduced_timeserie, load_reduced_timeserie = load_reduced_timeserie,
     switch_LCOE_calc=switch_LCOE_calc,
-    switch_reserve=switch_reserve, switch_errorcheck=switch_errorcheck,
+    switch_reserve=switch_reserve, switch_errorcheck=switch_errorcheck, switch_results_db=switch_results_db,
     extr_str_results = extr_str_results, extr_str_dispatch=extr_str_dispatch,
     switch_iis=switch_iis);
     t_build_end = Dates.now()
@@ -215,6 +217,25 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     Settings = case["Settings"]
     considered_duals = case["ConsideredDuals"]
     switch = case["Switch"]
+
+    # switch_test_data_load: dump the processed input parameters to DuckDB
+    # (genesysmod_inputdata_db.duckdb) for inspection, then stop before solver
+    # setup / optimize! (mirrors the GAMS switch_test_data_load behaviour).
+    # The data in case["Params"] here is post-interpolation/aggregation, so
+    # this verifies the full read + process.
+    if switch_test_data_load == 1
+        println("switch_test_data_load active: dumping input data to DuckDB, skipping solve.")
+        dump_inputs_db(case, switch)
+        release_dbs()
+        return model, case
+    end
+
+    # switch_dump_input_data: same input dump as switch_test_data_load
+    # (genesysmod_inputdata_db.duckdb), but the run continues into the solve.
+    if switch_dump_input_data == 1
+        _db_attempt(() -> dump_inputs_db(case, switch), "input data dump")
+    end
+
     #
     # ####### CPLEX Options #############
     #
@@ -316,18 +337,37 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         _tr = Dates.now()
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars,Maps)
         println("  Results: variable_parameter : ", Dates.now()-_tr); _tr = Dates.now()
-        if switch_processed_results == 1
+        # Switch semantics: switch_processed_results controls the CSV files,
+        # switch_results_db controls the database — independently. The
+        # processed tables are computed when either consumer wants them
+        # (CSV/DB gating happens inside genesysmod_results).
+        if switch.switch_results_db == 1
+            # purge the scenario across ALL tables once, so a re-run that
+            # writes fewer tables leaves no stale rows of this scenario
+            _db_attempt(() -> db_purge_scenario(switch, switch.extr_str_results),
+                "scenario purge '$(switch.extr_str_results)'")
+        end
+        if switch_processed_results == 1 || switch.switch_results_db == 1
             genesysmod_results(model, Sets, Params, VarPar, Vars, switch,
              Settings, Maps, elapsed, switch.extr_str_results)
             println("  Results: processed : ", Dates.now()-_tr); _tr = Dates.now()
         end
-        genesysmod_results_raw(model, VarPar, Params, switch,switch.extr_str_results, switch.switch_raw_results)
+        genesysmod_results_raw(model, VarPar, Params, Sets, switch,switch.extr_str_results, switch.switch_raw_results)
         println("  Results: raw : ", Dates.now()-_tr); _tr = Dates.now()
+        if switch.switch_results_db == 1
+            _db_attempt(() -> write_raw_results_db(model, VarPar, Params, Sets, switch, switch.extr_str_results),
+                "raw results (scenario '$(switch.extr_str_results)')")
+            println("  Results: db : ", Dates.now()-_tr); _tr = Dates.now()
+        end
         genesysmod_getspecifiedduals(model,switch,switch.extr_str_results, considered_duals)
         println("  Results: specified_duals : ", Dates.now()-_tr)
     else
         println("Termination status:", termination_status(model), ".")
     end
+
+    # Release the DuckDB handles: checkpoints the .wal and frees the file
+    # lock so the databases can be opened externally without ending Julia.
+    release_dbs()
 
     t_results_end = Dates.now()
     build_ms   = Dates.value(t_build_end   - starttime)

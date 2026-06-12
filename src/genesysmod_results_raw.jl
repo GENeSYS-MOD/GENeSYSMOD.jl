@@ -8,14 +8,22 @@ end
 """
 Write the values of each variable in the model to CSV files.
 """
-function genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, s_rawresults::CSVResult)
+# rowtable with real dimension names where derivable (see genesysmod_db.jl);
+# falls back to JuMP's default x1..xN header when the axes match no known set.
+function _named_rowtable(container, name::Symbol, Sets)
+    header = _rowtable_header(container, name, Sets)
+    return header === nothing ? JuMP.Containers.rowtable(value, container) :
+                                JuMP.Containers.rowtable(value, container; header=header)
+end
+
+function genesysmod_results_raw(model, VarPar, Params, Sets, Switch,extr_str, s_rawresults::CSVResult)
     vars = _registered_variables(model)
     Threads.@threads for v in vars
         if v ∉ [:cost, :z]
             @debug "Saving " v
             fn = joinpath(Switch.resultdir[], string(v) * "_" * Switch.model_region * "_"
              * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
-            CSV.write(fn, JuMP.Containers.rowtable(value, model[v]))
+            CSV.write(fn, _named_rowtable(model[v], v, Sets))
         end
     end
     for field in fieldnames(typeof(VarPar))
@@ -23,21 +31,21 @@ function genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, s_rawres
         if isa(daa, DenseArray)
             fn = joinpath(Switch.resultdir[], string(field) * "_" * Switch.model_region * "_" *
                           Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
-            CSV.write(fn, JuMP.Containers.rowtable(value, daa))
+            CSV.write(fn, _named_rowtable(daa, field, Sets))
         end
     end
     fn = joinpath(Switch.resultdir[], "RateOfDemand_" * Switch.model_region * "_" *
                           Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
-    CSV.write(fn, JuMP.Containers.rowtable(value, Params.RateOfDemand))
+    CSV.write(fn, _named_rowtable(Params.RateOfDemand, :RateOfDemand, Sets))
     fn = joinpath(Switch.resultdir[], "Demand_" * Switch.model_region * "_" *
             Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
-    CSV.write(fn, JuMP.Containers.rowtable(value, Params.Demand))
+    CSV.write(fn, _named_rowtable(Params.Demand, :Demand, Sets))
 end
 
-function genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, s_rawresults::NoRawResult)
+function genesysmod_results_raw(model, VarPar, Params, Sets, Switch,extr_str, s_rawresults::NoRawResult)
 end
 
-function genesysmod_results_raw(model, VarPar, Params, Switch, extr_str, s_rawresults::TXTResult)
+function genesysmod_results_raw(model, VarPar, Params, Sets, Switch, extr_str, s_rawresults::TXTResult)
     open(joinpath(Switch.resultdir[], "$(s_rawresults.filename)_$(extr_str).txt"), "w") do file
         objective = objective_value(model)
         println(file, "Objective = $objective")
@@ -64,9 +72,9 @@ function genesysmod_results_raw(model, VarPar, Params, Switch, extr_str, s_rawre
     end
 end
 
-function genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, s_rawresults::TXTandCSV)
-    genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, CSVResult())
-    genesysmod_results_raw(model, VarPar, Params, Switch,extr_str, TXTResult(s_rawresults.filename))
+function genesysmod_results_raw(model, VarPar, Params, Sets, Switch,extr_str, s_rawresults::TXTandCSV)
+    genesysmod_results_raw(model, VarPar, Params, Sets, Switch,extr_str, CSVResult())
+    genesysmod_results_raw(model, VarPar, Params, Sets, Switch,extr_str, TXTResult(s_rawresults.filename))
 end
 
 function genesysmod_getduals(model,Switch,extr_str)
@@ -87,6 +95,7 @@ function genesysmod_getspecifiedduals(model,Switch,extr_str, specified_constrain
     df=DataFrames.DataFrame(names=[],values=[])
     for con in specified_constraints
         c = constraint_by_name(model,con)
+        c === nothing && continue  # constraint may be absent if its `< 999999` guard skipped it
         d = dual(c)
         n = name(c)
         if d != 0 && n != ""
@@ -123,3 +132,6 @@ function genesysmod_getdualsbyname(model,Switch,extr_str, constr_name)
 
     return df
 end
+
+# The input-data dump moved to DuckDB: see dump_inputs_db in genesysmod_db.jl
+# (writes genesysmod_inputdata_db.duckdb with real dimension names).

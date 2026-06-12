@@ -787,6 +787,14 @@ run that will be read to fix some decision variables.\n
   `Errorcheck_<nthhour>_<date>.txt` in the result directory.
   0 = skip; 1 = downgrade hard errors to reports and continue;
   2 (default) = GAMS behaviour, abort on hard errors.\n
+- **`switch_results_db ::Int8`** If 1 (default 0), all outputs (processed result tables,
+  raw variables, VarPar intermediates) are written to a single DuckDB file
+  `genesysmod_results_db.duckdb` in the result directory — independent of the CSV
+  switches (`switch_processed_results` gates only the CSV files). Tables are keyed by
+  a `Scenario` column = `extr_str_results`: re-running a scenario first purges its rows
+  from every table (so runs writing fewer tables leave no stale rows), a new scenario
+  name appends. Handles are released at the end of the run (`release_dbs`); writes
+  blocked by an external reader (Tableau, DBeaver) are queued for `retry_db_writes()`.\n
 """
 struct Switch <: InputClass
     StartYear :: Int16
@@ -841,6 +849,7 @@ struct Switch <: InputClass
     extr_str_dispatch ::String
     switch_reserve ::Int16
     switch_errorcheck ::Int8
+    switch_results_db ::Int8
 end
 
 """

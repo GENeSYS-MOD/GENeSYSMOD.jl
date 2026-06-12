@@ -7,6 +7,8 @@ GAMS version of the model.
 module GENeSYSMOD
 
 using DataFrames
+using DuckDB
+using DBInterface
 using Dates
 using JuMP
 using XLSX
@@ -23,6 +25,7 @@ const LATEST_DATA_VERSION = "v1.0.5"
 
 include("datastructures.jl")
 include("utils.jl")
+include("genesysmod_db.jl")
 include("genesysmod_errorcheck.jl")
 include("fetch_inputdata.jl")
 include("genesysmod_main.jl")
@@ -47,5 +50,6 @@ export NoInfeasibilityTechs, WithInfeasibilityTechs # for use with the switch in
 export OneNodeSimple, TwoNodes, OneNodeStorage
 export NoRawResult, CSVResult, TXTResult, TXTandCSV
 export update_and_process_data, fetch_data_release
+export release_dbs, retry_db_writes
 
 end
