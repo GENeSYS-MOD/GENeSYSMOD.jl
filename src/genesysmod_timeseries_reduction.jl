@@ -35,9 +35,76 @@ function create_df_hourly(in_data, tab_name)
 end
 
 """
+Load a precomputed reduced timeseries from an Excel in `inputdir`, bypassing the
+scaling NLP, so two model versions (e.g. GAMS and Julia) can be driven from one
+identical reduced timeseries. Expected file (same layout the `write_reduced_timeserie`
+export produces, so a Julia-written file round-trips):
 
+    input_reduced_timeserie_<model_region>_<emissionPathway>_<emissionScenario>_<elmod_nthhour>.xlsx
+
+Sheets (long format, value in the LAST column):
+  CapacityFactor         : Region, Technology, Timeslice, Year, value   (renewables + heatpumps)
+  SpecifiedDemandProfile : Region, Fuel,       Timeslice, Year, value   (end-use fuels)
+  YearSplit              : Timeslice, Year, value
+  x_peakingDemand        : Region, Sector, value
+  TimeDepEfficiency      : Region, Technology, Timeslice, Year, value   (optional; heatpump COP)
+
+`Timeslice` values must be the model's reduced-timeslice HOUR indices — the hours `h`
+with `(h - elmod_starthour) % elmod_nthhour == 0` (e.g. 8, 491, 974, ...), NOT 1:N — and
+`Year` the modelled years. Rows whose indices are not in the current sets are skipped, so
+a GAMS export must label its timeslices with those same hour indices and use the same
+sheet names / column order.
 """
+function load_reduced_timeserie!(Params, Sets, Switch)
+    filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(Switch.elmod_nthhour).xlsx"
+    isfile(filename) || error("load_reduced_timeserie: file not found: $(filename)")
+    xf = XLSX.readxlsx(filename)
+    sheets = XLSX.sheetnames(xf)
+
+    asint(x) = x isa Integer ? Int(x) : (x isa AbstractFloat ? Int(round(x)) : parse(Int, strip(string(x))))
+    getdf(s) = DataFrame(XLSX.gettable(xf[s]))
+
+    # Reset to the same defaults a full reduction starts from, then overwrite.
+    Params.CapacityFactor[:,:,:,:] .= 1.0
+    for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Solar"])
+        Params.CapacityFactor[:,t,:,:] .= 0.0
+    end
+    for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Wind"])
+        Params.CapacityFactor[:,t,:,:] .= 0.0
+    end
+    Params.TimeDepEfficiency[:,:,:,:] .= 1.0
+    Params.YearSplit[:,:] .= 1/length(Sets.Timeslice)
+
+    # (ok, skipped) counters per sheet — skipped means the row's indices are not in
+    # the current sets (most often a Timeslice-label mismatch), so it was ignored.
+    function fill!(sheet, setter)
+        ok = 0; skip = 0
+        for row ∈ eachrow(getdf(sheet))
+            try; setter(row); ok += 1; catch; skip += 1; end
+        end
+        println("Build:   load $(rpad(sheet,24)) ok=$(ok) skipped=$(skip)")
+        skip > 0 && ok == 0 && @warn "load_reduced_timeserie: ALL rows of $(sheet) skipped — Timeslice/index labels likely do not match the model sets."
+    end
+
+    fill!("CapacityFactor",         row -> (Params.CapacityFactor[string(row[1]), string(row[2]), asint(row[3]), asint(row[4])] = Float64(row[end])))
+    fill!("SpecifiedDemandProfile", row -> (Params.SpecifiedDemandProfile[string(row[1]), string(row[2]), asint(row[3]), asint(row[4])] = Float64(row[end])))
+    fill!("YearSplit",              row -> (Params.YearSplit[asint(row[1]), asint(row[2])] = Float64(row[end])))
+    fill!("x_peakingDemand",        row -> (Params.x_peakingDemand[string(row[1]), string(row[2])] = Float64(row[end])))
+    if "TimeDepEfficiency" ∈ sheets
+        fill!("TimeDepEfficiency",  row -> (Params.TimeDepEfficiency[string(row[1]), string(row[2]), asint(row[3]), asint(row[4])] = Float64(row[end])))
+    end
+
+    println("Build:   loaded reduced timeserie from $(basename(filename))")
+end
+
 function timeseries_reduction!(Params, Sets, Switch)
+
+    # Bypass the (non-convex) scaling NLP and read a precomputed reduced
+    # timeseries instead, so two model versions can share an identical one.
+    if Switch.load_reduced_timeserie == 1
+        load_reduced_timeserie!(Params, Sets, Switch)
+        return
+    end
 
     switch_dunkelflaute = Switch.elmod_dunkelflaute
 
@@ -421,6 +488,7 @@ function timeseries_reduction!(Params, Sets, Switch)
         df_CapacityFactor = convert_jump_container_to_df(Params.CapacityFactor[:,capf_list,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
         df_x_peakingDemand = convert_jump_container_to_df(Params.x_peakingDemand;dim_names=[:Region,:Sector])
         df_YearSplit = convert_jump_container_to_df(Params.YearSplit;dim_names=[:Timeslice,:Year])
+        df_TimeDepEfficiency = convert_jump_container_to_df(Params.TimeDepEfficiency[:,capf_list,:,:];dim_names=[:Region,:Technology,:Timeslice,:Year])
 
         filename = "$(Switch.inputdir)/input_reduced_timeserie_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(Switch.elmod_nthhour).xlsx"
         if isfile(filename)
@@ -428,7 +496,7 @@ function timeseries_reduction!(Params, Sets, Switch)
         end
         XLSX.writetable(filename,
         "SpecifiedDemandProfile" => df_SpecifiedDemandProfile, "CapacityFactor" => df_CapacityFactor, "x_peakingDemand" => df_x_peakingDemand,
-        "YearSplit" => df_YearSplit)
+        "YearSplit" => df_YearSplit, "TimeDepEfficiency" => df_TimeDepEfficiency)
     end
 
 end

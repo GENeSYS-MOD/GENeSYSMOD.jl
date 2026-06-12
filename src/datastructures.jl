@@ -9,7 +9,7 @@ Tags - The different tags used in the model to map across sets and subsets
 struct Tags <: InputClass
     TagTechnologyToSubsets::Dict{String,Array{String}}
     TagFuelToSubsets::Dict{String,Array{String}}
-TagRegionToSubsets::Dict{String,Array{String}}
+    TagRegionToSubsets::Dict{String,Array{String}}
     TagDemandFuelToSector::JuMP.Containers.DenseAxisArray
     TagElectricTechnology::JuMP.Containers.DenseAxisArray
     TagTechnologyToModalType::JuMP.Containers.DenseAxisArray
@@ -769,6 +769,10 @@ The raw results dumps the content of all variables into CSVs.\n
 additional metrics not part of the raw results.\n
 - **`write_reduced_timeserie ::Int8`** Used to enable the writing of a file containing the
  results of the time reduction algorithm.\n
+- **`load_reduced_timeserie ::Int8`** If 1, skip the scaling NLP and load the reduced
+ timeseries (CapacityFactor / SpecifiedDemandProfile / YearSplit / x_peakingDemand /
+ optionally TimeDepEfficiency) from an Excel in `inputdir`, so two model versions can be
+ driven from one identical reduced timeseries.\n
 - **`extr_str_results ::String`** Final name of the result files written by the model.\n
 - **`extr_str_dispatch ::String`**  If switch_dispatch = 1, final name of the result file form the investment
 run that will be read to fix some decision variables.\n
@@ -821,6 +825,7 @@ struct Switch <: InputClass
     switch_raw_results ::RawResultType
     switch_processed_results ::Int8
     write_reduced_timeserie ::Int8
+    load_reduced_timeserie ::Int8
     switch_LCOE_calc ::Int8
     extr_str_results ::String
     extr_str_dispatch ::String

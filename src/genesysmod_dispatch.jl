@@ -27,6 +27,7 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
 
     switch_infeasibility_tech = WithInfeasibilityTechs()
     write_reduced_timeserie = 0
+    load_reduced_timeserie = 0
 
     if !isdir(resultdir)
         mkdir(resultdir)
@@ -78,6 +79,7 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
     switch_raw_results,
     switch_processed_results,
     write_reduced_timeserie,
+    load_reduced_timeserie,
     switch_LCOE_calc,
     extr_str_results,
     extr_str_dispatch,

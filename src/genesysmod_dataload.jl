@@ -135,7 +135,9 @@ function read_sets(in_data, Switch, s_infeas, s_dispatch; dispatch_week=nothing)
     Emission = DataFrame(XLSX.gettable(in_data["Sets"],"F";first_row=1))[!,"Emission"]
     Technology = DataFrame(XLSX.gettable(in_data["Sets"],"B";first_row=1))[!,"Technology"]
     Fuel = DataFrame(XLSX.gettable(in_data["Sets"],"D";first_row=1))[!,"Fuel"]
-    Year = DataFrame(XLSX.gettable(in_data["Sets"],"I";first_row=1))[!,"Year"]
+    # sort ascending: the model's intertemporal logic (𝓨[i-1]/𝓨[i+1],
+    # YearlyDifferenceMultiplier) assumes years are in ascending order
+    Year = sort(DataFrame(XLSX.gettable(in_data["Sets"],"I";first_row=1))[!,"Year"])
     Mode_of_operation = DataFrame(XLSX.gettable(in_data["Sets"],"E";first_row=1))[!,"Mode_of_operation"]
     Region_full = DataFrame(XLSX.gettable(in_data["Sets"],"A";first_row=1))[!,"Region"]
     Storage = DataFrame(XLSX.gettable(in_data["Sets"],"C";first_row=1))[!,"Storage"]
@@ -198,7 +200,7 @@ function read_tags(in_data, Sets, Switch, s_infeas, s_dispatch)
 
     TagTechnologyToSubsets = read_subsets(in_data, "Par_TagTechnologyToSubsets") #TODO handle the tags consistently: now we have lists of technology in one and DAA of tech, subsets and 1. Some parameters seems also redundant.
     TagFuelToSubsets = read_subsets(in_data, "Par_TagFuelToSubsets")
-TagRegionToSubsets = "Par_TagRegionToSubsets" ∈ XLSX.sheetnames(in_data) ?
+    TagRegionToSubsets = "Par_TagRegionToSubsets" ∈ XLSX.sheetnames(in_data) ?
         read_subsets(in_data, "Par_TagRegionToSubsets") : Dict{String,Array{String}}()
     TagDemandFuelToSector = create_daa(in_data, "Par_TagDemandFuelToSector", 𝓕, 𝓢𝓮)
     TagElectricTechnology = create_daa(in_data, "Par_TagElectricTechnology", 𝓣)
@@ -502,7 +504,7 @@ function read_params(in_data, Sets, Switch, Tags)
     StorageLevelStart,MinStorageCharge,
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity, NewCapacityExpansionStop,TotalAnnualMinCapacity,
-GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
@@ -605,7 +607,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     NewCapacityExpansionStop = JuMP.Containers.DenseAxisArray(zeros(length(𝓡),length(𝓣)), 𝓡, 𝓣)
 
     TotalAnnualMinCapacity = aggregate_daa(Params_Full.TotalAnnualMinCapacity, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
-# Group capacity limits — dispatch path: dataset-defined subset axes don't change with
+    # Group capacity limits — dispatch path: dataset-defined subset axes don't change with
     # region slicing, so just slice the year dimension (subsets stay; sub-region totals will
     # be checked against the same group limits as the full model).
     GroupTotalAnnualMaxCapacity = Params_Full.GroupTotalAnnualMaxCapacity[:,:,𝓨]
@@ -683,7 +685,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,
     NewCapacityExpansionStop,TotalAnnualMinCapacity,
-GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
