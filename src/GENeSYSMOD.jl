@@ -23,6 +23,7 @@ const LATEST_DATA_VERSION = "v1.0.5"
 
 include("datastructures.jl")
 include("utils.jl")
+include("genesysmod_errorcheck.jl")
 include("fetch_inputdata.jl")
 include("genesysmod_main.jl")
 include("genesysmod_dec.jl")

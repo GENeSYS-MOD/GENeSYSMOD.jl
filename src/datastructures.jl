@@ -777,6 +777,16 @@ additional metrics not part of the raw results.\n
 - **`extr_str_dispatch ::String`**  If switch_dispatch = 1, final name of the result file form the investment
 run that will be read to fix some decision variables.\n
  - **`switch_reserve ::Int16`** Used to enable reserve margin constraints\n
+- **`switch_errorcheck ::Int8`** Input-data error checks (port of
+  genesysmod_errorcheck.gms), run after bounds/scenariodata like the GAMS include
+  order. Hard checks (missing sector tags, OperationalLife, CapacityToActivityUnit,
+  CapacityFactor, trade inconsistencies, ModalSplit sums > 1, demand without
+  producer, min > max bounds, base-year group-capacity cone, ...) abort the run;
+  soft checks (missing AvailabilityFactor, efficiency > 1) only warn — same split
+  as in GAMS. All findings (full offender lists) are written to
+  `Errorcheck_<nthhour>_<date>.txt` in the result directory.
+  0 = skip; 1 = downgrade hard errors to reports and continue;
+  2 (default) = GAMS behaviour, abort on hard errors.\n
 """
 struct Switch <: InputClass
     StartYear :: Int16
@@ -830,6 +840,7 @@ struct Switch <: InputClass
     extr_str_results ::String
     extr_str_dispatch ::String
     switch_reserve ::Int16
+    switch_errorcheck ::Int8
 end
 
 """
