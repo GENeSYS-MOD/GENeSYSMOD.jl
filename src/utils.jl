@@ -204,7 +204,9 @@ function create_daa(in_data::DataFrame, tab_name, els...) # els contains the Set
     # Missing value / missing key cells are skipped (old try/catch parity).
     axsets = map(Set, els)
     for r in eachrow(df)
-        val = r.y
+        # value is the last column (keys are r[1:end-1]); positional so it works
+        # whether the CSV names it :Value or :y across the dispatch read paths.
+        val = r[end]
         ismissing(val) && continue
         if all(i -> coalesce(r[i] ∈ axsets[i], false), eachindex(axsets))
             A[r[1:end-1]...] = val
