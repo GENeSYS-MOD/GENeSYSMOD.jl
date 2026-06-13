@@ -114,11 +114,11 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
 
     genesysmod_bounds(model,Sets,Params, Vars,Settings,switch,Maps)
 
-    #
-    # ####### Input-data error checks (port of genesysmod_errorcheck.gms) #############
-    #
-
-    genesysmod_errorcheck(Sets, Params, switch)
+    # NOTE: genesysmod_errorcheck is intentionally NOT run in the dispatch path.
+    # Dispatch slices the timeslices to the dispatch window in dataload and
+    # aggregates storage links, so the full-year input invariants (demand-profile
+    # / YearSplit normalization, storage charge/discharge pairing) would produce
+    # false positives here. Input data is validated in the investment build.
 
     #
     # ####### Fix Investment Variables #############
