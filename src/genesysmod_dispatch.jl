@@ -276,7 +276,9 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
             error("Model infeasible. Turn on 'switch_iis' to compute and write the iis file")
         end
 
-    elseif termination_status(model) == MOI.OPTIMAL
+    elseif primal_status(model) == MOI.FEASIBLE_POINT   # feasible (incl. sub-optimal barrier), not only certified OPTIMAL
+        termination_status(model) == MOI.OPTIMAL ||
+            @warn "Solver did not certify optimality ($(termination_status(model))); writing dispatch results from the feasible solution."
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
         # CSVs gated by switch_processed_results, database by switch_results_db
         # (gating inside genesysmod_results); purge once before any db writes.

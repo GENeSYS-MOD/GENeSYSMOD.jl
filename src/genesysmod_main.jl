@@ -337,7 +337,15 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
             error("Model infeasible. Turn on 'switch_iis' to compute and write the iis file")
         end
 
-    elseif termination_status(model) == MOI.OPTIMAL
+    elseif primal_status(model) == MOI.FEASIBLE_POINT
+        # Write results whenever a feasible primal solution exists — not only on a
+        # certified MOI.OPTIMAL. Gurobi barrier without crossover can stop at a
+        # near-optimal "sub-optimal termination" (numerically uncertified) that is
+        # still a perfectly usable solution; the strict ==OPTIMAL gate silently
+        # dropped those (no CSV, no DB). INFEASIBLE/UNBOUNDED are handled above and
+        # have no FEASIBLE_POINT, so they still skip results.
+        termination_status(model) == MOI.OPTIMAL ||
+            @warn "Solver did not certify optimality ($(termination_status(model))); writing results from the feasible solution. For a certified-optimal solve, enable crossover."
         _tr = Dates.now()
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars,Maps)
         println("  Results: variable_parameter : ", Dates.now()-_tr); _tr = Dates.now()
