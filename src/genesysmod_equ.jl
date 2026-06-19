@@ -225,36 +225,10 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end
   end
 
-  #TagTimeIndependentFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕, 𝓡)
+  # A fuel that can be used/demanded but not produced is time-independent. This is
+  # derived from the data; the old hard-coded `Info == "reduced"`/`"reduced2"` fuel
+  # override list is dropped — time-independence comes from the input data instead.
   TagTimeIndependentFuel = CanFuelBeUsedOrDemanded.*(1 .- CanFuelBeProduced)
-  Info = "reduced"
-  if Info == "reduced"
-    TagTimeIndependentFuel[:,"Lignite",:] .= 1
-    TagTimeIndependentFuel[:,"Biomass",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Residential",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Commercial",:] .= 1
-    TagTimeIndependentFuel[:,"Hardcoal",:] .= 1
-    TagTimeIndependentFuel[:,"Nuclear",:] .= 1
-    TagTimeIndependentFuel[:,"Oil",:] .= 1
-    TagTimeIndependentFuel[:,"Air",:] .= 1
-    TagTimeIndependentFuel[:,"DAC_Dummy",:] .= 1
-    TagTimeIndependentFuel[:,"ETS",:] .= 1
-    TagTimeIndependentFuel[:,"ETS_Source",:] .= 1
-  elseif Info == "reduced2"
-    TagTimeIndependentFuel[:,"Lignite",:] .= 1
-    TagTimeIndependentFuel[:,"Biomass",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Residential",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Commercial",:] .= 1
-    TagTimeIndependentFuel[:,"Hardcoal",:] .= 1
-    TagTimeIndependentFuel[:,"Nuclear",:] .= 1
-    TagTimeIndependentFuel[:,"Oil",:] .= 1
-    TagTimeIndependentFuel[:,"Air",:] .= 1
-    TagTimeIndependentFuel[:,"DAC_Dummy",:] .= 1
-    TagTimeIndependentFuel[:,"ETS",:] .= 1
-    TagTimeIndependentFuel[:,"ETS_Source",:] .= 1
-    TagTimeIndependentFuel[:,"LNG",:] .= 1
-    TagTimeIndependentFuel[:,"LBG",:] .= 1
-  end
 
   IgnoreFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕, 𝓡)
   for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡
