@@ -813,6 +813,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   # over a technology subset (Tags.TagTechnologyToSubsets) intersected with a
   # region subset (Tags.TagRegionToSubsets), per year. Use 999999 sentinel for
   # "no upper limit" (matches TCC1 convention); 0 lower limit is inert.
+  # Group limits only bind investment runs; in a region-restricted dispatch they
+  # can be spuriously infeasible, so skip them outside the NoDispatch path.
+  if Switch.switch_dispatch isa NoDispatch
   for (ts, techs) ∈ Params.Tags.TagTechnologyToSubsets
     techs_in_subset = intersect(techs, 𝓣)
     isempty(techs_in_subset) && continue
@@ -834,6 +837,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         end
       end
     end
+  end
   end
   print("Cstr: Tot. Cap. : ",Dates.now()-start,"\n")
 
@@ -1251,13 +1255,17 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
               base_name="R1_ProductionChange|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
             if Params.Tags.TagDispatchableTechnology[t]==1 && Params.RampingUpFactor[t,y] != 0 && Params.AvailabilityFactor[r,t,y] > 0 && Params.TotalAnnualMaxCapacity[r,t,y] > 0 && Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] > 0
+              # sampled hours represent elmod_hourstep real hours apart, so scale the
+              # per-step ramp budget by that spacing (reduced-timeseries correctness).
+              ramp_hours = max(Int(Switch.elmod_hourstep), 1)
               @constraint(model,
-              Vars.ProductionUpChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingUpFactor[t,y]*Params.YearSplit[𝓛[i],y],
+              Vars.ProductionUpChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingUpFactor[t,y]*Params.YearSplit[𝓛[i],y]*ramp_hours,
               base_name="R2_RampingUpLimit|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
             if Params.Tags.TagDispatchableTechnology[t]==1 && Params.RampingDownFactor[t,y] != 0 && Params.AvailabilityFactor[r,t,y] > 0 && Params.TotalAnnualMaxCapacity[r,t,y] > 0 && Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] > 0
+              ramp_hours = max(Int(Switch.elmod_hourstep), 1)
               @constraint(model,
-              Vars.ProductionDownChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingDownFactor[t,y]*Params.YearSplit[𝓛[i],y],
+              Vars.ProductionDownChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingDownFactor[t,y]*Params.YearSplit[𝓛[i],y]*ramp_hours,
               base_name="R3_RampingDownLimit|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
           end
