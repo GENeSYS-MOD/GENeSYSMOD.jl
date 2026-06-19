@@ -251,8 +251,10 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
         #set_optimizer_attribute(model, "Names", "no")
         set_optimizer_attribute(model, "Method", 2)
         set_optimizer_attribute(model, "BarHomogeneous", 1)
+        set_optimizer_attribute(model, "NumericFocus", 1)   # mild numeric care for ill-conditioned matrices
+        set_optimizer_attribute(model, "ScaleFlag", 2)      # aggressive geometric scaling to absorb a wide coefficient range
         set_optimizer_attribute(model, "Crossover", 0)
-        set_optimizer_attribute(model, "GURO_PAR_DUMP", 1)
+        set_optimizer_attribute(model, "GURO_PAR_DUMP", 0)
         if solver_log
             set_optimizer_attribute(model, "LogFile", joinpath(resultdir,"Run_$(elmod_nthhour)_$(today()).log"))
         end
