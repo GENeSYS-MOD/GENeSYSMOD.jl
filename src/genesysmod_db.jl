@@ -332,6 +332,23 @@ function write_raw_results_db(model, VarPar, Params, Sets, Switch, extr_str)
     return
 end
 
+"""
+Write a duals frame — the (constraint-name, dual-value) DataFrame produced by
+`genesysmod_getspecifiedduals` / `genesysmod_getdualsbyname` — into
+`genesysmod_results_db.duckdb` as `duals_<label>`, keyed by scenario like the
+other result tables (columns renamed to `Constraint`/`Dual`). Empty frame is a
+no-op; wrapped in `_db_attempt` so a locked file never aborts the run.
+"""
+function write_duals_db(df::DataFrame, label::AbstractString, Switch, extr_str)
+    isempty(df) && return
+    out = DataFrame(Constraint = string.(df[!, 1]), Dual = Float64.(df[!, 2]))
+    con = _db_connect(_results_db_path(Switch))
+    table = "duals_" * string(label)
+    _db_attempt(() -> _db_write_scenario!(con, table,
+        _with_run_context(out, Switch, extr_str), String(extr_str)), table)
+    return
+end
+
 # ---------------------------------------------------------------------------
 # Input-data database (switch_test_data_load)
 # ---------------------------------------------------------------------------

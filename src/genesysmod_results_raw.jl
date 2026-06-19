@@ -107,6 +107,7 @@ function genesysmod_getspecifiedduals(model,Switch,extr_str, specified_constrain
     fn = joinpath(Switch.resultdir[], "Selected_Duals" * "_" * Switch.model_region * "_"
              * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
     CSV.write(fn, df)
+    Switch.switch_results_db == 1 && write_duals_db(df, "Selected", Switch, extr_str)
 end
 
 function genesysmod_getdualsbyname(model,Switch,extr_str, constr_name)
@@ -129,6 +130,7 @@ function genesysmod_getdualsbyname(model,Switch,extr_str, constr_name)
     fn = joinpath(Switch.resultdir[], constr_name * "_" * Switch.model_region * "_"
              * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" * extr_str * ".csv")
     CSV.write(fn, df)
+    Switch.switch_results_db == 1 && write_duals_db(df, constr_name, Switch, extr_str)
 
     return df
 end
