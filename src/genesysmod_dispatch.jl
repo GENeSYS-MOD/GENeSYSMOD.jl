@@ -526,7 +526,7 @@ function read_emissions(Sets, Switch, region_full, s_rawresults::CSVResult)
 end
 
 function read_emissions(Sets, Switch, s_rawresults::CSVResult)
-    in_data=CSV.read(joinpath(Switch.resultdir[], "TotalStorageCapacityAnnual_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" *Switch.extr_str_results * ".csv"), DataFrame)
+    in_data=CSV.read(joinpath(Switch.resultdir[], "AnnualEmissions_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" *Switch.extr_str_results * ".csv"), DataFrame)
     tmp_AnnualEmissions = create_daa(in_data, "", Sets.Year, Sets.Emission, Sets.Region_full)
     return tmp_AnnualEmissions
 end

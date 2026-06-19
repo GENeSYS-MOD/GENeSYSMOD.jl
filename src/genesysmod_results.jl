@@ -235,7 +235,9 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     df_residual_capacity[!,:Type] .= "ResidualCapacity"
     df_residual_capacity[!,:PathwayScenario] .= "$(Switch.emissionPathway)_$(Switch.emissionScenario)"
 
-    df_total_capacity = convert_jump_container_to_df(value.(Vars.TotalCapacityAnnual[:,tmp_techs,:]);dim_names=[:Year, :Technology, :Region])
+    # Use all technologies; a leftover `tmp_techs` slice from an earlier loop had
+    # slipped in and silently dropped techs. Per-sector subsetting happens below.
+    df_total_capacity = convert_jump_container_to_df(value.(Vars.TotalCapacityAnnual[:,:,:]);dim_names=[:Year, :Technology, :Region])
     df_total_capacity[!,:Type] .= "TotalCapacity"
     df_total_capacity[!,:PathwayScenario] .= "$(Switch.emissionPathway)_$(Switch.emissionScenario)"
 
