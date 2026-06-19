@@ -1012,14 +1012,23 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         @constraint(model, sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ 𝓣) - (Switch.switch_dispatch isa NoDispatch ? 0 : DummyEmissionInfeasibility[y,e,r]) == Vars.AnnualEmissions[y,e,r],
         base_name="E6_AnnualEmissionsAccounting|$(y)|$(e)|$(r)")
 
-        @constraint(model, Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] <= Params.RegionalAnnualEmissionLimit[r,e,y],
-        base_name="E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")
+        # Only emit the limit constraint when a real limit is set; the 999999
+        # sentinel ("no limit") would otherwise add a toothless <= ~1e6 row that
+        # stretches the RHS range.
+        if Params.RegionalAnnualEmissionLimit[r,e,y] < 999999
+          @constraint(model, Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] <= Params.RegionalAnnualEmissionLimit[r,e,y],
+          base_name="E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")
+        end
       end
-      @constraint(model, sum(Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] for r ∈ 𝓡) <= Params.AnnualEmissionLimit[e,y],
-      base_name="E9_AnnualEmissionsLimit|$(y)|$(e)")
+      if Params.AnnualEmissionLimit[e,y] < 999999
+        @constraint(model, sum(Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] for r ∈ 𝓡) <= Params.AnnualEmissionLimit[e,y],
+        base_name="E9_AnnualEmissionsLimit|$(y)|$(e)")
+      end
     end
-    @constraint(model, sum(Vars.ModelPeriodEmissions[r,e] for r ∈ 𝓡) <= Params.ModelPeriodEmissionLimit[e],
-    base_name="E10_ModelPeriodEmissionsLimit|$(e)")
+    if Params.ModelPeriodEmissionLimit[e] < 999999
+      @constraint(model, sum(Vars.ModelPeriodEmissions[r,e] for r ∈ 𝓡) <= Params.ModelPeriodEmissionLimit[e],
+      base_name="E10_ModelPeriodEmissionsLimit|$(e)")
+    end
   end
 
   print("Cstr: Em. Acc. 2 : ",Dates.now()-start,"\n")
@@ -1059,16 +1068,16 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   ################ Sectoral Emissions Accounting ##############
   start=Dates.now()
   for y ∈ 𝓨, e ∈ 𝓔, se ∈ 𝓢𝓮
-#    if Params.AnnualSectoralEmissionLimit[e,se,y] < 999999
       for r ∈ 𝓡
         @constraint(model,
         sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ techs_by_sector[se]) == Vars.AnnualSectoralEmissions[y,e,se,r],
         base_name="E12_AnnualSectorEmissions|$(y)|$(e)|$(se)|$(r)")
       end
-      @constraint(model,
-      sum(Vars.AnnualSectoralEmissions[y,e,se,r] for r ∈ 𝓡 ) <= Params.AnnualSectoralEmissionLimit[e,se,y],
-      base_name="E13_AnnualSectorEmissionsLimit|$(y)|$(e)|$(se)")
-#    end
+      if Params.AnnualSectoralEmissionLimit[e,se,y] < 999999
+        @constraint(model,
+        sum(Vars.AnnualSectoralEmissions[y,e,se,r] for r ∈ 𝓡 ) <= Params.AnnualSectoralEmissionLimit[e,se,y],
+        base_name="E13_AnnualSectorEmissionsLimit|$(y)|$(e)|$(se)")
+      end
   end
 
   print("Cstr: ES: ",Dates.now()-start,"\n")
