@@ -1,6 +1,6 @@
 name = "GENeSYSMOD"
 uuid = "9f3a37f9-d498-4265-a124-3ae3e9ff3acf"
-version = "4.3.0"
+version = "4.4.0"
 authors = ["Dimitri Pinel <dimitri.pinel@sintef.no>", "Lars Hellemo <lars.hellemo@sintef.no>, Konstantin Löffler <kl@wip.tu-berlin.de>"]
 
 [deps]

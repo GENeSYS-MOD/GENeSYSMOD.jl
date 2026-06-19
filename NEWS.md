@@ -1,7 +1,7 @@
 Release Notes
 =============
 
-## Unreleased
+## v4.4.0
 - **DuckDB result + input databases.** With `switch_results_db = 1`, all outputs
   (processed result tables, raw variables, `Variable_Parameters` intermediates) are
   written to a single `genesysmod_results_db.duckdb` in the result directory. Every
@@ -43,6 +43,17 @@ Release Notes
   `write_reduced_timeserie`).
 - Further build-pipeline performance work (dataload parameter fills, smoothing
   window, SumCapacityFactor): model formulation untouched, MPS-verified identical.
+- Selected duals can be written to the DuckDB results database: with
+  `switch_results_db = 1`, `genesysmod_getspecifiedduals` / `genesysmod_getdualsbyname`
+  also write their (constraint, dual) frames to `duals_<label>` tables, keyed by
+  scenario like the other result tables.
+- The exact run configuration is recorded with the results: a new `output_switches`
+  table maps every `Switch` field to its value (processed-result CSVs and the DuckDB).
+- Additional input-data error checks: cost year-gaps (a cost parameter nonzero in
+  some modelled years but zero in an intermediate year, which `create_daa` does not
+  interpolate — effectively free to build in the gap); and, with
+  `switch_base_year_bounds`, base-year production exceeding the residual fleet's
+  maximum generation (hard) or the fuel's demand (warning).
 
 ## v4.3.0
 - Added a new tag ``TagRegionToSubsets``, two new parameters ``GroupTotalAnnualMaxCapacity`` and ``GroupTotalAnnualMinCapacity``, as well as two new constraints ``TCC3`` and ``TCC4``. These are fully optional, but allow for flexible creation of aggregated upper and lower bounds for installed capacities.
