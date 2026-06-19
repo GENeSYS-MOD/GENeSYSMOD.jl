@@ -176,16 +176,17 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
         RateOfTotalActivity=nothing
     end
 
-    BaseYearBounds_TooLow = @variable(model, BaseYearBounds_TooLow[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
-    BaseYearBounds_TooHigh = @variable(model, BaseYearBounds_TooHigh[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
-    if Switch.switch_base_year_bounds_debugging == 0
-        for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut
-            JuMP.fix(BaseYearBounds_TooLow[r,t,f,y], 0;force=true)
-            JuMP.fix(BaseYearBounds_TooHigh[r,t,f,y], 0;force=true)
-        end end end
+    # Debug-only slack variables: only declared when switch_base_year_bounds_debugging == 1.
+    # Production runs skip them entirely (lean LP, no BigM penalty rows, no fix-to-0 vars).
+    if Switch.switch_base_year_bounds_debugging == 1
+        BaseYearBounds_TooLow  = @variable(model, BaseYearBounds_TooLow[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
+        BaseYearBounds_TooHigh = @variable(model, BaseYearBounds_TooHigh[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
+        HeatingSlack           = @variable(model, HeatingSlack[𝓡, 𝓨] >= 0, container=DenseArray)
+    else
+        BaseYearBounds_TooLow  = nothing
+        BaseYearBounds_TooHigh = nothing
+        HeatingSlack           = nothing
     end
-
-    HeatingSlack= @variable(model, HeatingSlack[𝓡, 𝓨] >= 0, container=DenseArray)
 
     DiscountedSalvageValueTransmission= @variable(model, DiscountedSalvageValueTransmission[𝓨,𝓡] >= 0, container=DenseArray)
 

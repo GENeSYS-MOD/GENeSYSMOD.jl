@@ -31,9 +31,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   + sum(Vars.DiscountedAnnualTotalTradeCosts[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
   + sum(Vars.DiscountedNewTradeCapacityCosts[y,f,r,rr] for y ∈ 𝓨 for (f,r,rr) ∈ Maps.Set_Fuel_Regions)
   + sum(Vars.DiscountedAnnualCurtailmentCost[y,f,r] for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡)
-  + sum(Vars.BaseYearBounds_TooHigh[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
-  + sum(Vars.BaseYearBounds_TooLow[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
-  + sum(Vars.HeatingSlack[r,y]*9999 for r ∈ 𝓡 for y ∈ 𝓨)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.BaseYearBounds_TooHigh[r,t,f,y]*1000 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut) : 0)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.BaseYearBounds_TooLow[r,t,f,y]*1000 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut) : 0)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.HeatingSlack[r,y]*1000 for r ∈ 𝓡 for y ∈ 𝓨) : 0)
   - sum(Vars.DiscountedSalvageValueTransmission[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
   + (Switch.switch_dispatch isa NoDispatch ? 0 : sum(DummyEmissionInfeasibility[y,e,r] * 99999 for y ∈ 𝓨 for r ∈ 𝓡 for e ∈ 𝓔)))
   print("Cstr: Cost : ",Dates.now()-start,"\n")
@@ -1335,20 +1335,20 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
    ############### General BaseYear Limits && trajectories #############
    start=Dates.now()
+    # Production mode (switch_base_year_bounds_debugging == 0): slack vars don't
+    # exist, so the base-year bounds are strict. Debug mode: slack vars carry a
+    # BigM penalty in the objective so an infeasible base-year floor shows softly.
+    debug = Switch.switch_base_year_bounds_debugging == 1
     for y ∈ 𝓨 for (t,f) ∈ Maps.Set_Tech_FuelOut for r ∈ 𝓡
-        if Switch.switch_base_year_bounds_debugging == 0
-          JuMP.fix(Vars.BaseYearBounds_TooHigh[r,t,f,y], 0; force=true)
-          JuMP.fix(Vars.BaseYearBounds_TooLow[r,t,f,y], 0; force=true)
-        end
         if Params.RegionalBaseYearProduction[r,t,f,y] != 0
           @constraint(model,
-          Vars.ProductionByTechnologyAnnual[y,t,f,r] >= Params.RegionalBaseYearProduction[r,t,f,y]*(1-Settings.BaseYearSlack[f]) - Vars.BaseYearBounds_TooHigh[r,t,f,y],
+          Vars.ProductionByTechnologyAnnual[y,t,f,r] >= Params.RegionalBaseYearProduction[r,t,f,y]*(1-Settings.BaseYearSlack[f]) - (debug ? Vars.BaseYearBounds_TooHigh[r,t,f,y] : 0),
           base_name="BYB1_RegionalBaseYearProductionLowerBound|$(y)|$(r)|$(t)|$(f)")
         end
 
         if Params.RegionalBaseYearProduction[r,t,f,y] != 0
           @constraint(model,
-          Vars.ProductionByTechnologyAnnual[y,t,f,r] <= Params.RegionalBaseYearProduction[r,t,f,y] + Vars.BaseYearBounds_TooLow[r,t,f,y],
+          Vars.ProductionByTechnologyAnnual[y,t,f,r] <= Params.RegionalBaseYearProduction[r,t,f,y] + (debug ? Vars.BaseYearBounds_TooLow[r,t,f,y] : 0),
           base_name="BYB2_RegionalBaseYearProductionUpperBound|$(y)|$(r)|$(t)|$(f)")
         end
     end end end

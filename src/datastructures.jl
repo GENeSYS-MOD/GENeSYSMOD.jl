@@ -486,9 +486,9 @@ struct Variables
 
     RateOfTotalActivity ::Union{Nothing,VarDenseIISS}
 
-    BaseYearBounds_TooLow ::JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}
-    BaseYearBounds_TooHigh ::JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}
-    HeatingSlack ::VarDenseSI
+    BaseYearBounds_TooLow ::Union{Nothing, JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}}
+    BaseYearBounds_TooHigh ::Union{Nothing, JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}}
+    HeatingSlack ::Union{Nothing, VarDenseSI}
 
     DiscountedSalvageValueTransmission ::VarDenseIS
 
