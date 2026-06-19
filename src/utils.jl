@@ -103,43 +103,51 @@ values are intialized to 0. If copy world is true, the value for the region worl
 If inherit_base_world is 1, missing data will be fetched from the base region if they exist
 and again from the world region if necessary.
 """
+# Fill empty (== sentinel) entries of every region from base_region, then "World".
+# Region must be dimension 1 of A. Pure value copies on A.data slices — replaces
+# the former O(R × rest-of-dims) Iterators.product scan with per-region broadcasts.
+function _inherit_base_world!(A, els, base_region, sentinel)
+    regions = collect(els[1])
+    rb = findfirst(==(base_region), regions)
+    rw = findfirst(==("World"), regions)
+    rest = ntuple(_ -> Colon(), ndims(A.data) - 1)
+    base  = @view A.data[rb, rest...]
+    world = @view A.data[rw, rest...]
+    fillv = ifelse.(base .!= sentinel, base, ifelse.(world .!= sentinel, world, sentinel))
+    for ri in axes(A.data, 1)
+        (ri == rb || ri == rw) && continue
+        s = @view A.data[ri, rest...]
+        s .= ifelse.(s .== sentinel, fillv, s)
+    end
+    return A
+end
+
 function create_daa(in_data::XLSX.XLSXFile, tab_name, els...;inherit_base_world=false,copy_world=false, base_region="DE") # els contains the Sets, col_names is the name of the columns in the df as symbols
     df = DataFrame(XLSX.gettable(in_data[tab_name];first_row=1))
     # Initialize all combinations to zero:
     A = JuMP.Containers.DenseAxisArray(
         zeros(length.(els)...), els...)
-    # Fill in values from Excel
+    # Fill in values from Excel; membership pre-check instead of try/catch so
+    # out-of-set rows don't pay exception-unwind cost on every miss. Rows with
+    # a missing Value or missing key cells are skipped — the former try/catch
+    # swallowed those silently, so this keeps the same semantics.
+    axsets = map(Set, els)
     for r in eachrow(df)
-        try
-            A[r[1:end-1]...] = r.Value
-        catch err
-            @debug err
+        val = r.Value
+        ismissing(val) && continue
+        if all(i -> coalesce(r[i] ∈ axsets[i], false), eachindex(axsets))
+            A[r[1:end-1]...] = val
         end
     end
-    # Fill other values using base region
+    # Fill other values using base region / World, operating on .data slices
+    # (region is dimension 1) instead of a full Iterators.product scan
     if inherit_base_world
-        other_regions = filter(r -> r != base_region && r != "World", collect(els[1]))
-        for x in Base.Iterators.product(other_regions, els[2:end]...)
-            if A[x...] == 0.0
-                base_val = A[base_region, x[2:end]...]
-                if base_val != 0.0
-                    A[x...] = base_val
-                else
-                    world_val = A["World", x[2:end]...]
-                    if world_val != 0.0
-                        A[x...] = world_val
-                    end
-                end
-            end
-        end
+        _inherit_base_world!(A, els, base_region, 0.0)
     end
     if copy_world
-        for x in Base.Iterators.product(els[2:end]...)
-            world_val = A["World", x...]
-            for r in els[1]
-                A[r, x...] = world_val
-            end
-        end
+        rw = findfirst(==("World"), collect(els[1]))
+        world = A.data[rw:rw, ntuple(_ -> Colon(), ndims(A.data)-1)...]
+        A.data .= world
     end
     #if tab_name == "Par_CapacityToActivityUnit"
         #for x in Base.Iterators.product(els...)
@@ -153,12 +161,9 @@ function create_daa(in_data::XLSX.XLSXFile, tab_name, els...;inherit_base_world=
         #end
     #end
     if tab_name == "Par_EmissionsPenalty"
-        for x in Base.Iterators.product(els[2:end]...)
-            base_val = A[base_region, x...]
-            for r in els[1]
-                A[r, x...] = base_val
-            end
-        end
+        rb = findfirst(==(base_region), collect(els[1]))
+        base = A.data[rb:rb, ntuple(_ -> Colon(), ndims(A.data)-1)...]
+        A.data .= base
     end
     return A
 end
@@ -195,12 +200,16 @@ function create_daa(in_data::DataFrame, tab_name, els...) # els contains the Set
     # Initialize all combinations to zero:
     A = JuMP.Containers.DenseAxisArray(
         zeros(length.(els)...), els...)
-    # Fill in values from Excel
+    # Fill in values from Excel; membership pre-check instead of try/catch.
+    # Missing value / missing key cells are skipped (old try/catch parity).
+    axsets = map(Set, els)
     for r in eachrow(df)
-        try
-            A[r[1:end-1]...] = r.y
-        catch err
-            @debug err
+        # value is the last column (keys are r[1:end-1]); positional so it works
+        # whether the CSV names it :Value or :y across the dispatch read paths.
+        val = r[end]
+        ismissing(val) && continue
+        if all(i -> coalesce(r[i] ∈ axsets[i], false), eachindex(axsets))
+            A[r[1:end-1]...] = val
         end
     end
     return A
@@ -214,38 +223,24 @@ function create_daa_init(in_data, tab_name,init_value=0, els...;inherit_base_wor
     # Initialize all combinations to zero:
     A = JuMP.Containers.DenseAxisArray(
         ones(length.(els)...)*init_value, els...)
-    # Fill in values from Excel
+    # Fill in values from Excel; membership pre-check instead of try/catch.
+    # Missing Value / missing key cells are skipped (old try/catch parity).
+    axsets = map(Set, els)
     for r in eachrow(df)
-        try
-            A[r[1:end-1]...] = r.Value
-        catch err
-            @debug err
+        val = r.Value
+        ismissing(val) && continue
+        if all(i -> coalesce(r[i] ∈ axsets[i], false), eachindex(axsets))
+            A[r[1:end-1]...] = val
         end
     end
-    # Fill other values using base region
+    # Fill other values using base region / World (sentinel = init_value)
     if inherit_base_world
-        other_regions = filter(r -> r != base_region && r != "World", collect(els[1]))
-        for x in Base.Iterators.product(other_regions, els[2:end]...)
-            if A[x...] == init_value
-                base_val = A[base_region, x[2:end]...]
-                if base_val != init_value
-                    A[x...] = base_val
-                else
-                    world_val = A["World", x[2:end]...]
-                    if world_val != init_value
-                        A[x...] = world_val
-                    end
-                end
-            end
-        end
+        _inherit_base_world!(A, els, base_region, init_value)
     end
     if copy_world
-        for x in Base.Iterators.product(els[2:end]...)
-            world_val = A["World", x...]
-            for r in els[1]
-                A[r, x...] = world_val
-            end
-        end
+        rw = findfirst(==("World"), collect(els[1]))
+        world = A.data[rw:rw, ntuple(_ -> Colon(), ndims(A.data)-1)...]
+        A.data .= world
     end
     #if tab_name == "Par_CapacityToActivityUnit"
         #for x in Base.Iterators.product(els...)

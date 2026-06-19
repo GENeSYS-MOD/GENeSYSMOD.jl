@@ -14,7 +14,8 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
         switch_employment_calculation = 0, switch_endogenous_employment = 0, employment_data_file = "",
         elmod_dunkelflaute = 0, switch_raw_results = CSVResult(), switch_processed_results = 1, switch_LCOE_calc=0,
         switch_dispatch = OneNodeSimple("DE"), extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",
-        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1,dispatch_week=nothing)
+        switch_base_year_bounds_debugging = 0, switch_reserve = 0, switch_iis=1,dispatch_week=nothing,
+        switch_errorcheck=2, switch_results_db=0, switch_endogenous_specifieddemandforecasting=1)
 
     elmod_daystep = elmod_nthhour ÷ 24
     elmod_hourstep = elmod_nthhour % 24
@@ -27,6 +28,7 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
 
     switch_infeasibility_tech = WithInfeasibilityTechs()
     write_reduced_timeserie = 0
+    load_reduced_timeserie = 0
 
     if !isdir(resultdir)
         mkdir(resultdir)
@@ -78,10 +80,14 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
     switch_raw_results,
     switch_processed_results,
     write_reduced_timeserie,
+    load_reduced_timeserie,
     switch_LCOE_calc,
     extr_str_results,
     extr_str_dispatch,
-    switch_reserve)
+    switch_reserve,
+    switch_errorcheck,
+    switch_results_db,
+    switch_endogenous_specifieddemandforecasting)
 
     starttime= Dates.now()
     model= JuMP.Model()
@@ -107,6 +113,12 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
     #
 
     genesysmod_bounds(model,Sets,Params, Vars,Settings,switch,Maps)
+
+    # NOTE: genesysmod_errorcheck is intentionally NOT run in the dispatch path.
+    # Dispatch slices the timeslices to the dispatch window in dataload and
+    # aggregates storage links, so the full-year input invariants (demand-profile
+    # / YearSplit normalization, storage charge/discharge pairing) would produce
+    # false positives here. Input data is validated in the investment build.
 
     #
     # ####### Fix Investment Variables #############
@@ -266,15 +278,28 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
 
     elseif termination_status(model) == MOI.OPTIMAL
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
-        if switch_processed_results == 1
+        # CSVs gated by switch_processed_results, database by switch_results_db
+        # (gating inside genesysmod_results); purge once before any db writes.
+        if switch.switch_results_db == 1
+            _db_attempt(() -> db_purge_scenario(switch, switch.extr_str_dispatch),
+                "scenario purge '$(switch.extr_str_dispatch)'")
+        end
+        if switch_processed_results == 1 || switch.switch_results_db == 1
             genesysmod_results(model, Sets, Params, VarPar, Vars, switch,
              Settings, Maps, elapsed,switch.extr_str_dispatch)
         end
-        genesysmod_results_raw(model, VarPar, Params, switch,switch.extr_str_dispatch,switch.switch_raw_results)
+        genesysmod_results_raw(model, VarPar, Params, Sets, switch,switch.extr_str_dispatch,switch.switch_raw_results)
+        if switch.switch_results_db == 1
+            _db_attempt(() -> write_raw_results_db(model, VarPar, Params, Sets, switch, switch.extr_str_dispatch),
+                "raw results (scenario '$(switch.extr_str_dispatch)')")
+        end
         genesysmod_getspecifiedduals(model,switch,switch.extr_str_dispatch, considered_duals)
     else
         println("Termination status:", termination_status(model), ".")
     end
+
+    # Checkpoint the .wal and free the DuckDB file locks for external readers.
+    release_dbs()
 
     return model, Dict("Sets" => Sets, "Params" => Params, "Switch" => switch)
 end

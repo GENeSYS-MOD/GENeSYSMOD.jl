@@ -300,10 +300,16 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     end
 
     ### parameter output_model(*,*,*,*)
-    colnames = [:Type, :PathwayScenario, :Pathway, :Scenario, :Value]
+    # rows pushed positionally — pushing a vector of Pairs stores the Pair
+    # itself in each cell (that bug shipped ":Type => ..." strings in the CSV).
+    # Elapsed time stored as seconds so the Value column stays numeric.
+    # :EmissionScenario, not :Scenario — the results database reserves the
+    # Scenario column for the run key (extr_str), and scenario purging matches
+    # on it; a same-named column here would shadow that key.
+    colnames = [:Type, :PathwayScenario, :Pathway, :EmissionScenario, :Value]
     output_model = DataFrame([name => [] for name in colnames])
-    push!(output_model, [name => val for (name,val) in zip(colnames,["Objective Value","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", JuMP.objective_value(model)])])
-    push!(output_model, [name => val for (name,val) in zip(colnames,["Elapsed Time","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", elapsed])])
+    push!(output_model, ["Objective Value","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", JuMP.objective_value(model)])
+    push!(output_model, ["Elapsed Time [s]","$(Switch.emissionPathway)_$(Switch.emissionScenario)","$(Switch.emissionPathway)","$(Switch.emissionScenario)", Dates.value(Dates.Millisecond(elapsed))/1000])
 
     ### parameter z_maxgenerationperyear(r_full,t,y_full)
     z_maxgenerationperyear = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Year)), Sets.Region_full, Sets.Technology, Sets.Year)
@@ -1017,14 +1023,47 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     #### Excel Output Sheet Definition and Export of GDX
     ####
 
-    CSV.write(joinpath(Switch.resultdir[],"output_production_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_energy_balance[output_energy_balance.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_annual_production_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_energy_balance_annual[output_energy_balance_annual.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_capacity_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_capacity[output_capacity.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_emission_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_emissions[output_emissions.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_other_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_other[output_other.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_model_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_model[output_model.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_technology_costs_detailed_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_technology_costs_detailed[output_technology_costs_detailed.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_exogenous_costs_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_exogenous_costs[output_exogenous_costs.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_trade_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_trade[output_trade.Value .!= 0, :])
-    CSV.write(joinpath(Switch.resultdir[],"output_energydemandstatistics_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), output_energydemandstatistics[output_energydemandstatistics.Value .!= 0, :])
+    # GAMS parity (genesysmod_results.gms): every output value is rounded to
+    # 4 digits. Rounding BEFORE the != 0 filter also drops the e-09 noise rows
+    # that barrier runs without crossover produce.
+    _round4(df) = begin
+        out = copy(df)
+        out.Value = round.(out.Value, digits=4)
+        out[out.Value .!= 0, :]
+    end
+    # Run configuration: every Switch field -> (Switch, Value), so the exact
+    # setup of a run is recorded with the results. Not _round4-ed (string/mixed
+    # values). Flows to CSV (switch_processed_results) and DuckDB (switch_results_db).
+    output_switches = DataFrame(Switch=String[], Value=String[])
+    for fn in fieldnames(typeof(Switch))
+        v = getfield(Switch, fn)
+        push!(output_switches, (string(fn), v isa Base.RefValue ? string(v[]) : string(v)))
+    end
+    processed_tables = Dict(
+        "output_production" => _round4(output_energy_balance),
+        "output_annual_production" => _round4(output_energy_balance_annual),
+        "output_capacity" => _round4(output_capacity),
+        "output_emission" => _round4(output_emissions),
+        "output_other" => _round4(output_other),
+        "output_model" => _round4(output_model),
+        "output_technology_costs_detailed" => _round4(output_technology_costs_detailed),
+        "output_exogenous_costs" => _round4(output_exogenous_costs),
+        "output_trade" => _round4(output_trade),
+        "output_energydemandstatistics" => _round4(output_energydemandstatistics),
+        "output_switches" => output_switches,
+    )
+
+    # switch_processed_results gates the CSVs, switch_results_db the database
+    if Switch.switch_processed_results == 1
+        for (tname, df) in processed_tables
+            CSV.write(joinpath(Switch.resultdir[],"$(tname)_$(Switch.model_region)_$(Switch.emissionPathway)_$(Switch.emissionScenario)_$(extr_str).csv"), df)
+        end
+    end
+
+    if Switch.switch_results_db == 1
+        _db_attempt("processed results (scenario '$(extr_str)')") do
+            write_processed_results_db(processed_tables, Sets, Switch, extr_str)
+            println("Processed results written to $(_results_db_path(Switch)) (scenario '$(extr_str)')")
+        end
+    end
 end

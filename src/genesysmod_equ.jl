@@ -66,8 +66,24 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   print("LoopSets : ",Dates.now()-start,"\n")
   start=Dates.now()
 
-  SumCapacityFactor = JuMP.Containers.DenseAxisArray(
-      [sum(Params.CapacityFactor[r,t,l,y] for l ∈ 𝓛) for r ∈ 𝓡, t ∈ 𝓣, y ∈ 𝓨], 𝓡, 𝓣, 𝓨)
+  # Sum CapacityFactor over 𝓛 on .data with axis positions resolved once
+  # (was one 4-key axis-hash per element). Plain sequential accumulation in 𝓛
+  # order keeps the floats bit-identical to the original generator sum —
+  # SumCapacityFactor feeds >0 / <length(𝓛) threshold checks downstream.
+  SumCapacityFactor = let pos = ax -> Dict(v => i for (i, v) ∈ enumerate(ax)),
+      cfd = Params.CapacityFactor.data, cfax = map(pos, axes(Params.CapacityFactor))
+      l_cf = [cfax[3][l] for l ∈ 𝓛]
+      scf = Array{Float64}(undef, length(𝓡), length(𝓣), length(𝓨))
+      for (yi, y) ∈ enumerate(𝓨), (ti, t) ∈ enumerate(𝓣), (ri, r) ∈ enumerate(𝓡)
+          r_cf = cfax[1][r]; t_cf = cfax[2][t]; y_cf = cfax[4][y]
+          s = cfd[r_cf, t_cf, l_cf[1], y_cf]
+          @inbounds for li ∈ 2:length(l_cf)
+              s += cfd[r_cf, t_cf, l_cf[li], y_cf]
+          end
+          scf[ri, ti, yi] = s
+      end
+      JuMP.Containers.DenseAxisArray(scf, 𝓡, 𝓣, 𝓨)
+  end
 
   # Precomputed filtered subsets reused across many constraint sections
   StorageDummies_techs = intersect(𝓣, Params.Tags.TagTechnologyToSubsets["StorageDummies"])

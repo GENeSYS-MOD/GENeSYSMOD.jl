@@ -43,24 +43,60 @@ function genesysmod_dataload(Switch; dispatch_week=nothing)
     GENeSYSMOD.timeseries_reduction!(Params, Sets, Switch)
     println("Build:   timeseries_reduction : ", Dates.now()-_tts)
 
-    for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
-        Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
+    # switch_endogenous_specifieddemandforecasting:
+    #   1 (default) → legacy behaviour: overwrite per-year SpecifiedAnnualDemand
+    #       with base-year × compounded SpecifiedDemandDevelopment growth (skips
+    #       H2 which is solved endogenously elsewhere).
+    #   0 → use per-year values from Par_SpecifiedAnnualDemand directly.
+    if Switch.switch_endogenous_specifieddemandforecasting == 1
+        for i ∈ eachindex(𝓨)[2:end], r ∈ 𝓡, f ∈ setdiff(𝓕, ["H2"])
+            Params.SpecifiedAnnualDemand[r,f,𝓨[i]] = Params.SpecifiedAnnualDemand[r,f,𝓨[i-1]] * (1 + Params.SpecifiedDemandDevelopment[r,f,𝓨[i]] * YearlyDifferenceMultiplier(𝓨[i-1],Sets))
+        end
     end
 
-    for y ∈ 𝓨 for l ∈ 𝓛 for r ∈ 𝓡
-        for f ∈ 𝓕
-            Params.RateOfDemand[y,l,f,r] = Params.SpecifiedAnnualDemand[r,f,y]*Params.SpecifiedDemandProfile[r,f,l,y] / Params.YearSplit[l,y]
-            Params.Demand[y,l,f,r] = Params.RateOfDemand[y,l,f,r] * Params.YearSplit[l,y]
-            if Params.Demand[y,l,f,r] < 0.000001
-                Params.Demand[y,l,f,r] = 0
+    # Same math as the former scalar loops, but on .data with axis positions
+    # resolved once — avoids one axis-hash per dimension per element. The
+    # parameter DAAs span Region_full (incl. "World") while 𝓡 excludes it here;
+    # iterating the label sets keeps World rows untouched, exactly like before.
+    let pos = ax -> Dict(v => i for (i, v) ∈ enumerate(ax)),
+        rodd = Params.RateOfDemand.data,            rodax = map(pos, axes(Params.RateOfDemand)),
+        demd = Params.Demand.data,                  demax = map(pos, axes(Params.Demand)),
+        sdpd = Params.SpecifiedDemandProfile.data,  sdpax = map(pos, axes(Params.SpecifiedDemandProfile)),
+        sadd = Params.SpecifiedAnnualDemand.data,   sadax = map(pos, axes(Params.SpecifiedAnnualDemand)),
+        ysd  = Params.YearSplit.data,               ysax  = map(pos, axes(Params.YearSplit)),
+        cfd  = Params.CapacityFactor.data,          cfax  = map(pos, axes(Params.CapacityFactor))
+
+        l_rod = [rodax[2][l] for l ∈ 𝓛]; l_dem = [demax[2][l] for l ∈ 𝓛]
+        l_sdp = [sdpax[3][l] for l ∈ 𝓛]; l_ys  = [ysax[1][l]  for l ∈ 𝓛]
+        l_cf  = [cfax[3][l]  for l ∈ 𝓛]
+        for y ∈ 𝓨
+            y_rod = rodax[1][y]; y_dem = demax[1][y]; y_sdp = sdpax[4][y]
+            y_sad = sadax[3][y]; y_ys = ysax[2][y]; y_cf = cfax[4][y]
+            for r ∈ 𝓡
+                r_rod = rodax[4][r]; r_dem = demax[4][r]; r_sdp = sdpax[1][r]
+                r_sad = sadax[1][r]; r_cf = cfax[1][r]
+                for f ∈ 𝓕
+                    f_rod = rodax[3][f]; f_dem = demax[3][f]; f_sdp = sdpax[2][f]; f_sad = sadax[2][f]
+                    sad_v = sadd[r_sad, f_sad, y_sad]
+                    @inbounds for li ∈ eachindex(𝓛)
+                        ys_v = ysd[l_ys[li], y_ys]
+                        rod_v = sad_v * sdpd[r_sdp, f_sdp, l_sdp[li], y_sdp] / ys_v
+                        rodd[y_rod, l_rod[li], f_rod, r_rod] = rod_v
+                        dem_v = rod_v * ys_v
+                        demd[y_dem, l_dem[li], f_dem, r_dem] = dem_v < 0.000001 ? 0.0 : dem_v
+                    end
+                end
+                for t ∈ 𝓣
+                    t_cf = cfax[2][t]
+                    @inbounds for li ∈ eachindex(𝓛)
+                        if cfd[r_cf, t_cf, l_cf[li], y_cf] < 0.000001
+                            cfd[r_cf, t_cf, l_cf[li], y_cf] = 0.0
+                        end
+                    end
+                end
             end
         end
-        for t ∈ 𝓣
-            if Params.CapacityFactor[r,t,l,y] < 0.000001
-                Params.CapacityFactor[r,t,l,y] = 0
-            end
-        end
-    end end end
+    end
 
         #
     # ####### Dummy-Technologies [enable for test purposes, if model runs infeasible] #############
@@ -135,7 +171,9 @@ function read_sets(in_data, Switch, s_infeas, s_dispatch; dispatch_week=nothing)
     Emission = DataFrame(XLSX.gettable(in_data["Sets"],"F";first_row=1))[!,"Emission"]
     Technology = DataFrame(XLSX.gettable(in_data["Sets"],"B";first_row=1))[!,"Technology"]
     Fuel = DataFrame(XLSX.gettable(in_data["Sets"],"D";first_row=1))[!,"Fuel"]
-    Year = DataFrame(XLSX.gettable(in_data["Sets"],"I";first_row=1))[!,"Year"]
+    # sort ascending: the model's intertemporal logic (𝓨[i-1]/𝓨[i+1],
+    # YearlyDifferenceMultiplier) assumes years are in ascending order
+    Year = sort(DataFrame(XLSX.gettable(in_data["Sets"],"I";first_row=1))[!,"Year"])
     Mode_of_operation = DataFrame(XLSX.gettable(in_data["Sets"],"E";first_row=1))[!,"Mode_of_operation"]
     Region_full = DataFrame(XLSX.gettable(in_data["Sets"],"A";first_row=1))[!,"Region"]
     Storage = DataFrame(XLSX.gettable(in_data["Sets"],"C";first_row=1))[!,"Storage"]
@@ -198,7 +236,7 @@ function read_tags(in_data, Sets, Switch, s_infeas, s_dispatch)
 
     TagTechnologyToSubsets = read_subsets(in_data, "Par_TagTechnologyToSubsets") #TODO handle the tags consistently: now we have lists of technology in one and DAA of tech, subsets and 1. Some parameters seems also redundant.
     TagFuelToSubsets = read_subsets(in_data, "Par_TagFuelToSubsets")
-TagRegionToSubsets = "Par_TagRegionToSubsets" ∈ XLSX.sheetnames(in_data) ?
+    TagRegionToSubsets = "Par_TagRegionToSubsets" ∈ XLSX.sheetnames(in_data) ?
         read_subsets(in_data, "Par_TagRegionToSubsets") : Dict{String,Array{String}}()
     TagDemandFuelToSector = create_daa(in_data, "Par_TagDemandFuelToSector", 𝓕, 𝓢𝓮)
     TagElectricTechnology = create_daa(in_data, "Par_TagElectricTechnology", 𝓣)
@@ -502,7 +540,7 @@ function read_params(in_data, Sets, Switch, Tags)
     StorageLevelStart,MinStorageCharge,
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity, NewCapacityExpansionStop,TotalAnnualMinCapacity,
-GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
@@ -605,7 +643,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     NewCapacityExpansionStop = JuMP.Containers.DenseAxisArray(zeros(length(𝓡),length(𝓣)), 𝓡, 𝓣)
 
     TotalAnnualMinCapacity = aggregate_daa(Params_Full.TotalAnnualMinCapacity, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
-# Group capacity limits — dispatch path: dataset-defined subset axes don't change with
+    # Group capacity limits — dispatch path: dataset-defined subset axes don't change with
     # region slicing, so just slice the year dimension (subsets stay; sub-region totals will
     # be checked against the same group limits as the full model).
     GroupTotalAnnualMaxCapacity = Params_Full.GroupTotalAnnualMaxCapacity[:,:,𝓨]
@@ -683,7 +721,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,
     NewCapacityExpansionStop,TotalAnnualMinCapacity,
-GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,

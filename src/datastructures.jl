@@ -9,7 +9,7 @@ Tags - The different tags used in the model to map across sets and subsets
 struct Tags <: InputClass
     TagTechnologyToSubsets::Dict{String,Array{String}}
     TagFuelToSubsets::Dict{String,Array{String}}
-TagRegionToSubsets::Dict{String,Array{String}}
+    TagRegionToSubsets::Dict{String,Array{String}}
     TagDemandFuelToSector::JuMP.Containers.DenseAxisArray
     TagElectricTechnology::JuMP.Containers.DenseAxisArray
     TagTechnologyToModalType::JuMP.Containers.DenseAxisArray
@@ -769,10 +769,38 @@ The raw results dumps the content of all variables into CSVs.\n
 additional metrics not part of the raw results.\n
 - **`write_reduced_timeserie ::Int8`** Used to enable the writing of a file containing the
  results of the time reduction algorithm.\n
+- **`load_reduced_timeserie ::Int8`** If 1, skip the scaling NLP and load the reduced
+ timeseries (CapacityFactor / SpecifiedDemandProfile / YearSplit / x_peakingDemand /
+ optionally TimeDepEfficiency) from an Excel in `inputdir`, so two model versions can be
+ driven from one identical reduced timeseries.\n
 - **`extr_str_results ::String`** Final name of the result files written by the model.\n
 - **`extr_str_dispatch ::String`**  If switch_dispatch = 1, final name of the result file form the investment
 run that will be read to fix some decision variables.\n
  - **`switch_reserve ::Int16`** Used to enable reserve margin constraints\n
+- **`switch_errorcheck ::Int8`** Input-data error checks (port of
+  genesysmod_errorcheck.gms), run after bounds/scenariodata like the GAMS include
+  order. Hard checks (missing sector tags, OperationalLife, CapacityToActivityUnit,
+  CapacityFactor, trade inconsistencies, ModalSplit sums > 1, demand without
+  producer, min > max bounds, base-year group-capacity cone, ...) abort the run;
+  soft checks (missing AvailabilityFactor, efficiency > 1) only warn — same split
+  as in GAMS. All findings (full offender lists) are written to
+  `Errorcheck_<nthhour>_<date>.txt` in the result directory.
+  0 = skip; 1 = downgrade hard errors to reports and continue;
+  2 (default) = GAMS behaviour, abort on hard errors.\n
+- **`switch_results_db ::Int8`** If 1 (default 0), all outputs (processed result tables,
+  raw variables, VarPar intermediates) are written to a single DuckDB file
+  `genesysmod_results_db.duckdb` in the result directory — independent of the CSV
+  switches (`switch_processed_results` gates only the CSV files). Tables are keyed by
+  a `Scenario` column = `extr_str_results`: re-running a scenario first purges its rows
+  from every table (so runs writing fewer tables leave no stale rows), a new scenario
+  name appends. Handles are released at the end of the run (`release_dbs`); writes
+  blocked by an external reader (Tableau, DBeaver) are queued for `retry_db_writes()`.\n
+- **`switch_endogenous_specifieddemandforecasting ::Int8`** If 1 (default),
+  SpecifiedAnnualDemand for years after the start year is overwritten using the base
+  year value compounded by SpecifiedDemandDevelopment (legacy behaviour, unchanged).
+  If 0, the per-year values read from `Par_SpecifiedAnnualDemand` are used directly,
+  so each year reflects the input data instead of being derived from year 1 — note
+  that datasets without per-year rows would then see zero demand in later years.\n
 """
 struct Switch <: InputClass
     StartYear :: Int16
@@ -821,10 +849,14 @@ struct Switch <: InputClass
     switch_raw_results ::RawResultType
     switch_processed_results ::Int8
     write_reduced_timeserie ::Int8
+    load_reduced_timeserie ::Int8
     switch_LCOE_calc ::Int8
     extr_str_results ::String
     extr_str_dispatch ::String
     switch_reserve ::Int16
+    switch_errorcheck ::Int8
+    switch_results_db ::Int8
+    switch_endogenous_specifieddemandforecasting ::Int8
 end
 
 """

@@ -1,6 +1,60 @@
 Release Notes
 =============
 
+## v4.4.0
+- **DuckDB result + input databases.** With `switch_results_db = 1`, all outputs
+  (processed result tables, raw variables, `Variable_Parameters` intermediates) are
+  written to a single `genesysmod_results_db.duckdb` in the result directory. Every
+  table carries a `Scenario` column (= `extr_str_results`): re-running a scenario first
+  purges its rows from *every* table, a new scenario name appends — multi-run
+  comparisons become a SQL query instead of CSV merging. `switch_processed_results`
+  now gates only the CSV files; the database is independent. Database handles are
+  released at the end of each run (`release_dbs()`, exported); writes blocked by an
+  external reader (Tableau, DBeaver) no longer crash the run — they are queued and
+  flushed via `retry_db_writes()` (exported) after closing the file. For Tableau via
+  the DuckDB JDBC/taco connector, a `.tdc` with `CAP_CREATE_TEMP_TABLES=no` /
+  `CAP_SELECT_INTO=no` avoids temp-table errors when creating 3+ groups.
+- `switch_test_data_load = 1` dumps the fully processed input parameters (one table
+  per parameter, real dimension names) to `genesysmod_inputdata_db.duckdb` and stops
+  before the solve; `switch_dump_input_data = 1` writes the same dump but continues
+  into the solve.
+- Raw CSV dumps and database tables now use real dimension names (Region, Technology,
+  Fuel, Year, ...) instead of `x1..xN` / `dim1..dimN`, derived automatically from the
+  model sets.
+- **Input-data error checks** (port of `genesysmod_errorcheck.gms`), run after
+  bounds/scenariodata: hard checks abort the run (missing sector tags /
+  OperationalLife / CapacityToActivityUnit / CapacityFactor, trade inconsistencies,
+  ModalSplit sums > 1, demand without producer, min > max bounds, emission limit below
+  exogenous floor, demand-profile/YearSplit normalization, storage link orphans,
+  negative values, base-year group-capacity cone), soft checks warn. Full offender
+  lists go to `Errorcheck_<nthhour>_<date>.txt`. `switch_errorcheck`: 0 = skip,
+  1 = report-only, 2 (default) = abort on hard errors.
+- Processed result tables are rounded to 4 digits (GAMS parity), removing the e-09
+  noise rows produced by barrier runs without crossover. Fixed `output_model` writing
+  literal `:Col => value` Pair strings into every cell; elapsed time is now numeric
+  seconds.
+- New `switch_endogenous_specifieddemandforecasting` (default 1 = unchanged legacy
+  behaviour: demand for later years is forecast from the base year via
+  `SpecifiedDemandDevelopment` growth). Set to 0 to use the per-year values from
+  `Par_SpecifiedAnnualDemand` directly — for datasets that provide explicit demand
+  trajectories per year.
+- `load_reduced_timeserie = 1` skips the timeseries-reduction NLP and loads a
+  previously written reduced timeseries from `inputdir` (pairs with
+  `write_reduced_timeserie`).
+- Further build-pipeline performance work (dataload parameter fills, smoothing
+  window, SumCapacityFactor): model formulation untouched, MPS-verified identical.
+- Selected duals can be written to the DuckDB results database: with
+  `switch_results_db = 1`, `genesysmod_getspecifiedduals` / `genesysmod_getdualsbyname`
+  also write their (constraint, dual) frames to `duals_<label>` tables, keyed by
+  scenario like the other result tables.
+- The exact run configuration is recorded with the results: a new `output_switches`
+  table maps every `Switch` field to its value (processed-result CSVs and the DuckDB).
+- Additional input-data error checks: cost year-gaps (a cost parameter nonzero in
+  some modelled years but zero in an intermediate year, which `create_daa` does not
+  interpolate — effectively free to build in the gap); and, with
+  `switch_base_year_bounds`, base-year production exceeding the residual fleet's
+  maximum generation (hard) or the fuel's demand (warning).
+
 ## v4.3.0
 - Added a new tag ``TagRegionToSubsets``, two new parameters ``GroupTotalAnnualMaxCapacity`` and ``GroupTotalAnnualMinCapacity``, as well as two new constraints ``TCC3`` and ``TCC4``. These are fully optional, but allow for flexible creation of aggregated upper and lower bounds for installed capacities.
 - Improved iis handling behavior, especially with the open HiGHS solver.
