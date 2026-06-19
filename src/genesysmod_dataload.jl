@@ -428,6 +428,10 @@ function read_params(in_data, Sets, Switch, Tags)
     GroupTotalAnnualMinCapacity = "Par_GroupTotalAnnualMinCapacity" ∈ XLSX.sheetnames(in_data) ?
         create_daa(in_data, "Par_GroupTotalAnnualMinCapacity", 𝓣𝓼, 𝓡𝓼, 𝓨) :
         DenseArray(zeros(length(𝓣𝓼), length(𝓡𝓼), length(𝓨)), 𝓣𝓼, 𝓡𝓼, 𝓨)
+    # Per-fuel time-independence tag (Fuel, Value). Optional sheet; absent => all 0.
+    TagTimeIndependentFuel = "Par_TagTimeIndependentFuel" ∈ XLSX.sheetnames(in_data) ?
+        create_daa(in_data, "Par_TagTimeIndependentFuel", 𝓕) :
+        DenseArray(zeros(length(𝓕)), 𝓕)
     TotalTechnologyAnnualActivityUpperLimit = create_daa(in_data, "Par_TotalAnnualMaxActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyAnnualActivityLowerLimit = create_daa(in_data, "Par_TotalAnnualMinActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = create_daa_init(in_data, "Par_ModelPeriodActivityMaxLimit", 999999, 𝓡, 𝓣)
@@ -541,6 +545,7 @@ function read_params(in_data, Sets, Switch, Tags)
     OperationalLifeStorage,CapitalCostStorage,ResidualStorageCapacity,TechnologyToStorage,
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity, NewCapacityExpansionStop,TotalAnnualMinCapacity,
     GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    TagTimeIndependentFuel,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,
@@ -648,6 +653,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     # be checked against the same group limits as the full model).
     GroupTotalAnnualMaxCapacity = Params_Full.GroupTotalAnnualMaxCapacity[:,:,𝓨]
     GroupTotalAnnualMinCapacity = Params_Full.GroupTotalAnnualMinCapacity[:,:,𝓨]
+    TagTimeIndependentFuel = Params_Full.TagTimeIndependentFuel
     TotalTechnologyAnnualActivityUpperLimit = aggregate_daa(Params_Full.TotalTechnologyAnnualActivityUpperLimit, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
     TotalTechnologyAnnualActivityLowerLimit = aggregate_daa(Params_Full.TotalTechnologyAnnualActivityLowerLimit, 𝓡, 𝓡_full, Sum(), 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = aggregate_daa(Params_Full.TotalTechnologyModelPeriodActivityUpperLimit, 𝓡, 𝓡_full, Sum(), 𝓣)
@@ -722,6 +728,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     TechnologyFromStorage,StorageMaxCapacity,TotalAnnualMaxCapacity,
     NewCapacityExpansionStop,TotalAnnualMinCapacity,
     GroupTotalAnnualMaxCapacity,GroupTotalAnnualMinCapacity,
+    TagTimeIndependentFuel,
     AnnualSectoralEmissionLimit,TotalAnnualMaxCapacityInvestment,
     TotalAnnualMinCapacityInvestment,TotalTechnologyAnnualActivityUpperLimit,
     TotalTechnologyAnnualActivityLowerLimit, TotalTechnologyModelPeriodActivityUpperLimit,

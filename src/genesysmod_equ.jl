@@ -225,10 +225,16 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end
   end
 
-  # A fuel that can be used/demanded but not produced is time-independent. This is
-  # derived from the data; the old hard-coded `Info == "reduced"`/`"reduced2"` fuel
-  # override list is dropped — time-independence comes from the input data instead.
+  # A fuel that can be used/demanded but not produced is time-independent (derived
+  # base). On top of that, the per-fuel data tag Par_TagTimeIndependentFuel marks
+  # additional fuels as time-independent — replacing the old hard-coded
+  # `Info == "reduced"` override list with an input-data parameter.
   TagTimeIndependentFuel = CanFuelBeUsedOrDemanded.*(1 .- CanFuelBeProduced)
+  for f ∈ 𝓕
+    if Params.TagTimeIndependentFuel[f] == 1
+      TagTimeIndependentFuel[:,f,:] .= 1
+    end
+  end
 
   IgnoreFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕, 𝓡)
   for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡
