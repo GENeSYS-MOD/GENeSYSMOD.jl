@@ -1031,6 +1031,14 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
         out.Value = round.(out.Value, digits=4)
         out[out.Value .!= 0, :]
     end
+    # Run configuration: every Switch field -> (Switch, Value), so the exact
+    # setup of a run is recorded with the results. Not _round4-ed (string/mixed
+    # values). Flows to CSV (switch_processed_results) and DuckDB (switch_results_db).
+    output_switches = DataFrame(Switch=String[], Value=String[])
+    for fn in fieldnames(typeof(Switch))
+        v = getfield(Switch, fn)
+        push!(output_switches, (string(fn), v isa Base.RefValue ? string(v[]) : string(v)))
+    end
     processed_tables = Dict(
         "output_production" => _round4(output_energy_balance),
         "output_annual_production" => _round4(output_energy_balance_annual),
@@ -1042,6 +1050,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
         "output_exogenous_costs" => _round4(output_exogenous_costs),
         "output_trade" => _round4(output_trade),
         "output_energydemandstatistics" => _round4(output_energydemandstatistics),
+        "output_switches" => output_switches,
     )
 
     # switch_processed_results gates the CSVs, switch_results_db the database
