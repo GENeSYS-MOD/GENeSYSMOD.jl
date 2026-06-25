@@ -428,10 +428,8 @@ function read_params(in_data, Sets, Switch, Tags)
     GroupTotalAnnualMinCapacity = "Par_GroupTotalAnnualMinCapacity" ∈ XLSX.sheetnames(in_data) ?
         create_daa(in_data, "Par_GroupTotalAnnualMinCapacity", 𝓣𝓼, 𝓡𝓼, 𝓨) :
         DenseArray(zeros(length(𝓣𝓼), length(𝓡𝓼), length(𝓨)), 𝓣𝓼, 𝓡𝓼, 𝓨)
-    # Per-fuel time-independence tag (Fuel, Value). Optional sheet; absent => all 0.
-    TagTimeIndependentFuel = "Par_TagTimeIndependentFuel" ∈ XLSX.sheetnames(in_data) ?
-        create_daa(in_data, "Par_TagTimeIndependentFuel", 𝓕) :
-        DenseArray(zeros(length(𝓕)), 𝓕)
+    # Per-fuel time-independence tag (Fuel, Value); a standard input sheet like the other tags.
+    TagTimeIndependentFuel = create_daa(in_data, "Par_TagTimeIndependentFuel", 𝓕)
     TotalTechnologyAnnualActivityUpperLimit = create_daa(in_data, "Par_TotalAnnualMaxActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyAnnualActivityLowerLimit = create_daa(in_data, "Par_TotalAnnualMinActivity", 𝓡, 𝓣, 𝓨)
     TotalTechnologyModelPeriodActivityUpperLimit = create_daa_init(in_data, "Par_ModelPeriodActivityMaxLimit", 999999, 𝓡, 𝓣)
