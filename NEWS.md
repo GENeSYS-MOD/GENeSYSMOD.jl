@@ -21,7 +21,7 @@ Release Notes
 - Fixes: `df_total_capacity` no longer drops technologies via a stray subset;
   `read_emissions` reads `AnnualEmissions_*.csv` (was the storage-capacity file); the
   empty-trade dummy uses an existing fuel; empty per-technology sums use `init=0.0`.
-- HiGHS compatibility set to `1.19 - 1.22` (previously `1.22`).
+- HiGHS now requires `1.22` (needed for the bitmask `iis_strategy`).
 
 ## v4.4.0
 - **DuckDB result + input databases.** With `switch_results_db = 1`, all outputs
