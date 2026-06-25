@@ -30,10 +30,40 @@ It reads scenario data from Excel, builds a large LP, solves it
 - `genesysmod_bounds.jl`, `genesysmod_settings.jl` — bounds and run settings.
 - `genesysmod_variable_parameter.jl`, `genesysmod_results.jl`,
   `genesysmod_results_raw.jl` — post-solve result processing.
+- `genesysmod_db.jl` — DuckDB result + input-data databases (writers, `Scenario`
+  keying, handle release/retry).
+- `genesysmod_errorcheck.jl` — input-data validation (port of
+  `genesysmod_errorcheck.gms`).
 - `datastructures.jl` — `Sets`, `Parameters`, `Variables`, `Maps`, `Settings`,
   `Variable_Parameters` structs.
 - `utils.jl` — `create_daa` (builds parameter `DenseAxisArray`s),
   `convert_jump_container_to_df`.
+
+## Outputs, databases & input checks
+
+- **Result CSVs** are written when `switch_processed_results = 1`. Processed
+  outputs are rounded to 4 digits (GAMS parity).
+- **DuckDB results database** (`switch_results_db = 1`): all outputs go to
+  `genesysmod_results_db.duckdb` in `resultdir` — processed tables (`output_*`),
+  raw variables (`raw_*`), `Variable_Parameters` intermediates (`varpar_*`) and
+  selected duals (`duals_*`). Every table carries a `Scenario` column
+  (= `extr_str_results`): re-running a scenario first purges its rows from every
+  table, a new scenario name appends. Independent of the CSV switch.
+- **Run configuration** is recorded with the results: every `Switch` field is
+  written to an `output_switches` table/CSV, so a run's exact setup travels with
+  its outputs.
+- **Input-data database**: `switch_test_data_load = 1` dumps the fully processed
+  input parameters to `genesysmod_inputdata_db.duckdb` (one table per parameter
+  and per set, real dimension names, `Params.Tags` included) and stops before the
+  solve; `switch_dump_input_data = 1` writes the same dump and continues.
+- Raw dumps and DB tables use **real dimension names** (Region, Technology, Fuel,
+  Year, …), not `x1..xN`.
+- DB handles are released at run end (`release_dbs()`, exported); a write blocked
+  by an external reader holding the file is queued and flushed via
+  `retry_db_writes()` (exported) rather than crashing the run.
+- **Input-data checks** (`genesysmod_errorcheck.jl`, run after bounds /
+  scenario data): `switch_errorcheck` — `0` skip, `1` report-only, `2` (default)
+  abort on hard checks. Full offender lists go to `Errorcheck_<nthhour>_<date>.txt`.
 
 ## Conventions & gotchas
 
@@ -53,6 +83,9 @@ It reads scenario data from Excel, builds a large LP, solves it
 - Code uses Unicode set aliases: `𝓨` year, `𝓡` region, `𝓣` technology,
   `𝓕` fuel, `𝓜` mode, `𝓛` timeslice, `𝓢` storage, `𝓔` emission. 2-space indent
   inside functions.
+- `switch_endogenous_specifieddemandforecasting` (default 1) forecasts later-year
+  demand from the base year via `SpecifiedDemandDevelopment`; set 0 to use the
+  per-year values in `Par_SpecifiedAnnualDemand` directly.
 
 ## Performance
 
