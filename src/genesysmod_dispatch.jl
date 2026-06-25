@@ -276,7 +276,9 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
             error("Model infeasible. Turn on 'switch_iis' to compute and write the iis file")
         end
 
-    elseif termination_status(model) == MOI.OPTIMAL
+    elseif primal_status(model) == MOI.FEASIBLE_POINT   # feasible (incl. sub-optimal barrier), not only certified OPTIMAL
+        termination_status(model) == MOI.OPTIMAL ||
+            @warn "Solver did not certify optimality ($(termination_status(model))); writing dispatch results from the feasible solution."
         VarPar = genesysmod_variable_parameter(model, Sets, Params, Vars, Maps)
         # CSVs gated by switch_processed_results, database by switch_results_db
         # (gating inside genesysmod_results); purge once before any db writes.
@@ -524,7 +526,7 @@ function read_emissions(Sets, Switch, region_full, s_rawresults::CSVResult)
 end
 
 function read_emissions(Sets, Switch, s_rawresults::CSVResult)
-    in_data=CSV.read(joinpath(Switch.resultdir[], "TotalStorageCapacityAnnual_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" *Switch.extr_str_results * ".csv"), DataFrame)
+    in_data=CSV.read(joinpath(Switch.resultdir[], "AnnualEmissions_" * Switch.model_region * "_" * Switch.emissionPathway * "_" * Switch.emissionScenario * "_" *Switch.extr_str_results * ".csv"), DataFrame)
     tmp_AnnualEmissions = create_daa(in_data, "", Sets.Year, Sets.Emission, Sets.Region_full)
     return tmp_AnnualEmissions
 end

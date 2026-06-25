@@ -390,6 +390,33 @@ function dump_inputs_db(case, switch::Switch)
             @warn "Could not dump parameter $(field)" exception=e
         end
     end
+    # Tags (Params.Tags): DenseAxisArray tags via the same rowtable path; the
+    # Dict tags (Tag*ToSubsets) expanded to (Subset, Element) rows.
+    if hasproperty(Params, :Tags)
+        for tf in fieldnames(typeof(Params.Tags))
+            tag = getfield(Params.Tags, tf)
+            try
+                if tag isa JuMP.Containers.DenseAxisArray
+                    df = DataFrame(JuMP.Containers.rowtable(identity, tag; header=_rowtable_header(tag, tf, Sets)))
+                elseif tag isa AbstractDict
+                    df = DataFrame(Subset=String[], Element=String[])
+                    for (k, vs) in tag, v in vs
+                        push!(df, (string(k), string(v)))
+                    end
+                else
+                    continue
+                end
+                isempty(df) && continue
+                reg = "df_tag"
+                DuckDB.register_data_frame(con, df, reg)
+                DBInterface.execute(con, "CREATE TABLE $(_quote_ident(string(tf))) AS SELECT * FROM $(_quote_ident(reg))")
+                DuckDB.unregister_data_frame(con, reg)
+                ntables += 1
+            catch e
+                @warn "Could not dump tag $(tf)" exception=e
+            end
+        end
+    end
     for field in fieldnames(typeof(Sets))
         s = getfield(Sets, field)
         s isa AbstractVector || continue

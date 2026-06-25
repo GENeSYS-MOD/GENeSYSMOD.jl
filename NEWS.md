@@ -1,6 +1,28 @@
 Release Notes
 =============
 
+## v4.4.1
+- Emission-limit constraints (E8/E9/E10/E13) are only generated when a real limit is
+  set (`< 999999`) instead of always adding a toothless `<= ~1e6` row; dual lookups
+  for these limits (endogenous CO2 price, `CarbonPrice`) return 0 when the constraint
+  is absent instead of erroring.
+- Results (and dispatch) are written on any feasible primal solution
+  (`primal_status == FEASIBLE_POINT`), not only a certified `OPTIMAL` — a
+  crossover-free barrier solution is no longer silently dropped.
+- `TagTimeIndependentFuel` is now read from the input data
+  (`Par_TagTimeIndependentFuel` sheet) instead of a hard-coded fuel list.
+- Base-year debug slack variables (`BaseYearBounds_*`, `HeatingSlack`) are only built
+  when `switch_base_year_bounds_debugging == 1` (leaner production LP); the BigM
+  penalty is lowered 9999 → 1000.
+- Group capacity limits (TCC3/TCC4) are only built on the investment path; ramping
+  limits are scaled by `elmod_hourstep`; `CapacityFactor` values below 0.01 are zeroed
+  after timeseries reduction; Gurobi runs with `NumericFocus=1` and `ScaleFlag=2`.
+- The input-data database dump now also includes `Params.Tags`.
+- Fixes: `df_total_capacity` no longer drops technologies via a stray subset;
+  `read_emissions` reads `AnnualEmissions_*.csv` (was the storage-capacity file); the
+  empty-trade dummy uses an existing fuel; empty per-technology sums use `init=0.0`.
+- HiGHS compatibility set to `1.19 - 1.22` (previously `1.22`).
+
 ## v4.4.0
 - **DuckDB result + input databases.** With `switch_results_db = 1`, all outputs
   (processed result tables, raw variables, `Variable_Parameters` intermediates) are

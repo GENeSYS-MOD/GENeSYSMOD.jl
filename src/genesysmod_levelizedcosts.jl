@@ -82,9 +82,13 @@ function genesysmod_levelizedcosts(model,Sets, Params, VarPar, Vars, Switch, Set
 
     CarbonPrice = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Emission),length(Sets.Year)), Sets.Region_full, Sets.Emission, Sets.Year)
     for r ∈ Sets.Region_full for y ∈ Sets.Year for e ∈ Sets.Emission
-        CarbonPrice[r,e,y] = (-1)*dual(constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit_$(y)_CO2_$(r)"))
+        # Constraints may be absent (guarded `< 999999` in equ.jl) or name-mismatched
+        # (pipe vs underscore — pre-existing latent issue). Either way: no shadow price.
+        cref = constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit_$(y)_CO2_$(r)")
+        CarbonPrice[r,e,y] = cref === nothing ? 0.0 : (-1)*dual(cref)
         if CarbonPrice[r,e,y] == 0
-            CarbonPrice[r,e,y] = (-1)*dual(constraint_by_name(model,"E9_AnnualEmissionsLimit_$(y)_CO2"))
+            cref = constraint_by_name(model,"E9_AnnualEmissionsLimit_$(y)_CO2")
+            CarbonPrice[r,e,y] = cref === nothing ? 0.0 : (-1)*dual(cref)
         end
         if CarbonPrice[r,e,y] == 0
             CarbonPrice[r,e,y] = Params.EmissionsPenalty[r,e,y]

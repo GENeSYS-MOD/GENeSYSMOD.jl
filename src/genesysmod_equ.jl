@@ -31,9 +31,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   + sum(Vars.DiscountedAnnualTotalTradeCosts[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
   + sum(Vars.DiscountedNewTradeCapacityCosts[y,f,r,rr] for y ∈ 𝓨 for (f,r,rr) ∈ Maps.Set_Fuel_Regions)
   + sum(Vars.DiscountedAnnualCurtailmentCost[y,f,r] for y ∈ 𝓨 for f ∈ 𝓕 for r ∈ 𝓡)
-  + sum(Vars.BaseYearBounds_TooHigh[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
-  + sum(Vars.BaseYearBounds_TooLow[r,t,f,y]*9999 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut)
-  + sum(Vars.HeatingSlack[r,y]*9999 for r ∈ 𝓡 for y ∈ 𝓨)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.BaseYearBounds_TooHigh[r,t,f,y]*1000 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut) : 0)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.BaseYearBounds_TooLow[r,t,f,y]*1000 for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut) : 0)
+  + (Switch.switch_base_year_bounds_debugging == 1 ? sum(Vars.HeatingSlack[r,y]*1000 for r ∈ 𝓡 for y ∈ 𝓨) : 0)
   - sum(Vars.DiscountedSalvageValueTransmission[y,r] for y ∈ 𝓨 for r ∈ 𝓡)
   + (Switch.switch_dispatch isa NoDispatch ? 0 : sum(DummyEmissionInfeasibility[y,e,r] * 99999 for y ∈ 𝓨 for r ∈ 𝓡 for e ∈ 𝓔)))
   print("Cstr: Cost : ",Dates.now()-start,"\n")
@@ -225,35 +225,15 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     end
   end
 
-  #TagTimeIndependentFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕, 𝓡)
+  # A fuel that can be used/demanded but not produced is time-independent (derived
+  # base). On top of that, the per-fuel data tag Par_TagTimeIndependentFuel marks
+  # additional fuels as time-independent — replacing the old hard-coded
+  # `Info == "reduced"` override list with an input-data parameter.
   TagTimeIndependentFuel = CanFuelBeUsedOrDemanded.*(1 .- CanFuelBeProduced)
-  Info = "reduced"
-  if Info == "reduced"
-    TagTimeIndependentFuel[:,"Lignite",:] .= 1
-    TagTimeIndependentFuel[:,"Biomass",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Residential",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Commercial",:] .= 1
-    TagTimeIndependentFuel[:,"Hardcoal",:] .= 1
-    TagTimeIndependentFuel[:,"Nuclear",:] .= 1
-    TagTimeIndependentFuel[:,"Oil",:] .= 1
-    TagTimeIndependentFuel[:,"Air",:] .= 1
-    TagTimeIndependentFuel[:,"DAC_Dummy",:] .= 1
-    TagTimeIndependentFuel[:,"ETS",:] .= 1
-    TagTimeIndependentFuel[:,"ETS_Source",:] .= 1
-  elseif Info == "reduced2"
-    TagTimeIndependentFuel[:,"Lignite",:] .= 1
-    TagTimeIndependentFuel[:,"Biomass",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Residential",:] .= 1
-    TagTimeIndependentFuel[:,"Area_Rooftop_Commercial",:] .= 1
-    TagTimeIndependentFuel[:,"Hardcoal",:] .= 1
-    TagTimeIndependentFuel[:,"Nuclear",:] .= 1
-    TagTimeIndependentFuel[:,"Oil",:] .= 1
-    TagTimeIndependentFuel[:,"Air",:] .= 1
-    TagTimeIndependentFuel[:,"DAC_Dummy",:] .= 1
-    TagTimeIndependentFuel[:,"ETS",:] .= 1
-    TagTimeIndependentFuel[:,"ETS_Source",:] .= 1
-    TagTimeIndependentFuel[:,"LNG",:] .= 1
-    TagTimeIndependentFuel[:,"LBG",:] .= 1
+  for f ∈ 𝓕
+    if Params.TagTimeIndependentFuel[f] == 1
+      TagTimeIndependentFuel[:,f,:] .= 1
+    end
   end
 
   IgnoreFuel = JuMP.Containers.DenseAxisArray(zeros(length(𝓨), length(𝓕), length(𝓡)), 𝓨, 𝓕, 𝓡)
@@ -839,6 +819,9 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   # over a technology subset (Tags.TagTechnologyToSubsets) intersected with a
   # region subset (Tags.TagRegionToSubsets), per year. Use 999999 sentinel for
   # "no upper limit" (matches TCC1 convention); 0 lower limit is inert.
+  # Group limits only bind investment runs; in a region-restricted dispatch they
+  # can be spuriously infeasible, so skip them outside the NoDispatch path.
+  if Switch.switch_dispatch isa NoDispatch
   for (ts, techs) ∈ Params.Tags.TagTechnologyToSubsets
     techs_in_subset = intersect(techs, 𝓣)
     isempty(techs_in_subset) && continue
@@ -860,6 +843,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         end
       end
     end
+  end
   end
   print("Cstr: Tot. Cap. : ",Dates.now()-start,"\n")
 
@@ -978,7 +962,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   for y ∈ 𝓨 for (t,m) ∈ Maps.Set_Tech_MO for r ∈ 𝓡
     if CanBuildTechnology[y,t,r] > 0
       for e ∈ 𝓔
-        @constraint(model, Params.EmissionActivityRatio[r,t,m,e,y]*sum((Vars.TotalAnnualTechnologyActivityByMode[y,t,m,r]*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]) for f ∈ Maps.Tech_Fuel[t]) == Vars.AnnualTechnologyEmissionByMode[y,t,e,m,r] , base_name="E1_AnnualEmissionProductionByMode|$(y)|$(t)|$(e)|$(m)|$(r)" )
+        @constraint(model, Params.EmissionActivityRatio[r,t,m,e,y]*sum((Vars.TotalAnnualTechnologyActivityByMode[y,t,m,r]*Params.EmissionContentPerFuel[f,e]*Params.InputActivityRatio[r,t,f,m,y]) for f ∈ Maps.Tech_Fuel[t]; init=0.0) == Vars.AnnualTechnologyEmissionByMode[y,t,e,m,r] , base_name="E1_AnnualEmissionProductionByMode|$(y)|$(t)|$(e)|$(m)|$(r)" )
       end
     else
       for e ∈ 𝓔
@@ -1012,14 +996,23 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         @constraint(model, sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ 𝓣) - (Switch.switch_dispatch isa NoDispatch ? 0 : DummyEmissionInfeasibility[y,e,r]) == Vars.AnnualEmissions[y,e,r],
         base_name="E6_AnnualEmissionsAccounting|$(y)|$(e)|$(r)")
 
-        @constraint(model, Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] <= Params.RegionalAnnualEmissionLimit[r,e,y],
-        base_name="E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")
+        # Only emit the limit constraint when a real limit is set; the 999999
+        # sentinel ("no limit") would otherwise add a toothless <= ~1e6 row that
+        # stretches the RHS range.
+        if Params.RegionalAnnualEmissionLimit[r,e,y] < 999999
+          @constraint(model, Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] <= Params.RegionalAnnualEmissionLimit[r,e,y],
+          base_name="E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")
+        end
       end
-      @constraint(model, sum(Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] for r ∈ 𝓡) <= Params.AnnualEmissionLimit[e,y],
-      base_name="E9_AnnualEmissionsLimit|$(y)|$(e)")
+      if Params.AnnualEmissionLimit[e,y] < 999999
+        @constraint(model, sum(Vars.AnnualEmissions[y,e,r]+Params.AnnualExogenousEmission[r,e,y] for r ∈ 𝓡) <= Params.AnnualEmissionLimit[e,y],
+        base_name="E9_AnnualEmissionsLimit|$(y)|$(e)")
+      end
     end
-    @constraint(model, sum(Vars.ModelPeriodEmissions[r,e] for r ∈ 𝓡) <= Params.ModelPeriodEmissionLimit[e],
-    base_name="E10_ModelPeriodEmissionsLimit|$(e)")
+    if Params.ModelPeriodEmissionLimit[e] < 999999
+      @constraint(model, sum(Vars.ModelPeriodEmissions[r,e] for r ∈ 𝓡) <= Params.ModelPeriodEmissionLimit[e],
+      base_name="E10_ModelPeriodEmissionsLimit|$(e)")
+    end
   end
 
   print("Cstr: Em. Acc. 2 : ",Dates.now()-start,"\n")
@@ -1059,16 +1052,16 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   ################ Sectoral Emissions Accounting ##############
   start=Dates.now()
   for y ∈ 𝓨, e ∈ 𝓔, se ∈ 𝓢𝓮
-#    if Params.AnnualSectoralEmissionLimit[e,se,y] < 999999
       for r ∈ 𝓡
         @constraint(model,
         sum(Vars.AnnualTechnologyEmission[y,t,e,r] for t ∈ techs_by_sector[se]) == Vars.AnnualSectoralEmissions[y,e,se,r],
         base_name="E12_AnnualSectorEmissions|$(y)|$(e)|$(se)|$(r)")
       end
-      @constraint(model,
-      sum(Vars.AnnualSectoralEmissions[y,e,se,r] for r ∈ 𝓡 ) <= Params.AnnualSectoralEmissionLimit[e,se,y],
-      base_name="E13_AnnualSectorEmissionsLimit|$(y)|$(e)|$(se)")
-#    end
+      if Params.AnnualSectoralEmissionLimit[e,se,y] < 999999
+        @constraint(model,
+        sum(Vars.AnnualSectoralEmissions[y,e,se,r] for r ∈ 𝓡 ) <= Params.AnnualSectoralEmissionLimit[e,se,y],
+        base_name="E13_AnnualSectorEmissionsLimit|$(y)|$(e)|$(se)")
+      end
   end
 
   print("Cstr: ES: ",Dates.now()-start,"\n")
@@ -1268,13 +1261,17 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
               base_name="R1_ProductionChange|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
             if Params.Tags.TagDispatchableTechnology[t]==1 && Params.RampingUpFactor[t,y] != 0 && Params.AvailabilityFactor[r,t,y] > 0 && Params.TotalAnnualMaxCapacity[r,t,y] > 0 && Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] > 0
+              # sampled hours represent elmod_hourstep real hours apart, so scale the
+              # per-step ramp budget by that spacing (reduced-timeseries correctness).
+              ramp_hours = max(Int(Switch.elmod_hourstep), 1)
               @constraint(model,
-              Vars.ProductionUpChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingUpFactor[t,y]*Params.YearSplit[𝓛[i],y],
+              Vars.ProductionUpChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingUpFactor[t,y]*Params.YearSplit[𝓛[i],y]*ramp_hours,
               base_name="R2_RampingUpLimit|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
             if Params.Tags.TagDispatchableTechnology[t]==1 && Params.RampingDownFactor[t,y] != 0 && Params.AvailabilityFactor[r,t,y] > 0 && Params.TotalAnnualMaxCapacity[r,t,y] > 0 && Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] > 0
+              ramp_hours = max(Int(Switch.elmod_hourstep), 1)
               @constraint(model,
-              Vars.ProductionDownChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingDownFactor[t,y]*Params.YearSplit[𝓛[i],y],
+              Vars.ProductionDownChangeInTimeslice[y,𝓛[i],f,t,r] <= Vars.TotalCapacityAnnual[y,t,r]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t]*Params.RampingDownFactor[t,y]*Params.YearSplit[𝓛[i],y]*ramp_hours,
               base_name="R3_RampingDownLimit|$(y)|$(𝓛[i])|$(f)|$(t)|$(r)")
             end
           end
@@ -1300,7 +1297,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         end
       end
       for t ∈ Sets.Technology
-        if (Params.Tags.TagDispatchableTechnology[t] == 0 || sum(Params.OutputActivityRatio[r,t,f,m,y] for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t]) == 0 || Params.ProductionChangeCost[t,y] == 0 || Params.AvailabilityFactor[r,t,y] == 0 || Params.TotalAnnualMaxCapacity[r,t,y] == 0 || Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] == 0)
+        if (Params.Tags.TagDispatchableTechnology[t] == 0 || sum(Params.OutputActivityRatio[r,t,f,m,y] for f ∈ Maps.Tech_Fuel[t] for m ∈ Maps.Tech_MO[t]; init=0.0) == 0 || Params.ProductionChangeCost[t,y] == 0 || Params.AvailabilityFactor[r,t,y] == 0 || Params.TotalAnnualMaxCapacity[r,t,y] == 0 || Params.TotalTechnologyModelPeriodActivityUpperLimit[r,t] == 0)
           JuMP.fix(Vars.DiscountedAnnualProductionChangeCost[y,t,r], 0; force=true)
           JuMP.fix(Vars.AnnualProductionChangeCost[y,t,r], 0; force=true)
         end
@@ -1326,20 +1323,20 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
 
    ############### General BaseYear Limits && trajectories #############
    start=Dates.now()
+    # Production mode (switch_base_year_bounds_debugging == 0): slack vars don't
+    # exist, so the base-year bounds are strict. Debug mode: slack vars carry a
+    # BigM penalty in the objective so an infeasible base-year floor shows softly.
+    debug = Switch.switch_base_year_bounds_debugging == 1
     for y ∈ 𝓨 for (t,f) ∈ Maps.Set_Tech_FuelOut for r ∈ 𝓡
-        if Switch.switch_base_year_bounds_debugging == 0
-          JuMP.fix(Vars.BaseYearBounds_TooHigh[r,t,f,y], 0; force=true)
-          JuMP.fix(Vars.BaseYearBounds_TooLow[r,t,f,y], 0; force=true)
-        end
         if Params.RegionalBaseYearProduction[r,t,f,y] != 0
           @constraint(model,
-          Vars.ProductionByTechnologyAnnual[y,t,f,r] >= Params.RegionalBaseYearProduction[r,t,f,y]*(1-Settings.BaseYearSlack[f]) - Vars.BaseYearBounds_TooHigh[r,t,f,y],
+          Vars.ProductionByTechnologyAnnual[y,t,f,r] >= Params.RegionalBaseYearProduction[r,t,f,y]*(1-Settings.BaseYearSlack[f]) - (debug ? Vars.BaseYearBounds_TooHigh[r,t,f,y] : 0),
           base_name="BYB1_RegionalBaseYearProductionLowerBound|$(y)|$(r)|$(t)|$(f)")
         end
 
         if Params.RegionalBaseYearProduction[r,t,f,y] != 0
           @constraint(model,
-          Vars.ProductionByTechnologyAnnual[y,t,f,r] <= Params.RegionalBaseYearProduction[r,t,f,y] + Vars.BaseYearBounds_TooLow[r,t,f,y],
+          Vars.ProductionByTechnologyAnnual[y,t,f,r] <= Params.RegionalBaseYearProduction[r,t,f,y] + (debug ? Vars.BaseYearBounds_TooLow[r,t,f,y] : 0),
           base_name="BYB2_RegionalBaseYearProductionUpperBound|$(y)|$(r)|$(t)|$(f)")
         end
     end end end

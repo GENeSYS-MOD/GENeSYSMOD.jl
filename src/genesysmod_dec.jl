@@ -128,7 +128,10 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
 
 
     ######### Trade #############
-    imp_exp_sets = isempty(Maps.Set_Fuel_Regions) ? Set([(String("ETS"),String(𝓡[1]),String(𝓡[1]))]) : Maps.Set_Fuel_Regions # dummy to avoid type problems in dispatch if se is empty
+    # Dummy self-trade entry keeps the sparse trade variables typed when the trade set
+    # is empty. Uses 𝓕[1] (always present); the old "ETS" placeholder is absent in
+    # reduced datasets, so no index matched and the container stayed {Any}.
+    imp_exp_sets = isempty(Maps.Set_Fuel_Regions) ? Set([(String(𝓕[1]),String(𝓡[1]),String(𝓡[1]))]) : Maps.Set_Fuel_Regions
     Import = @variable(model, Import[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     Export = @variable(model, Export[y=𝓨, l=𝓛, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
     NewTradeCapacity = @variable(model, NewTradeCapacity[y=𝓨, f=𝓕, r1=𝓡, r2=𝓡; (f,r1,r2) ∈ imp_exp_sets] >= 0)
@@ -176,16 +179,17 @@ function genesysmod_dec(model,Sets, Params,Switch, Maps)
         RateOfTotalActivity=nothing
     end
 
-    BaseYearBounds_TooLow = @variable(model, BaseYearBounds_TooLow[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
-    BaseYearBounds_TooHigh = @variable(model, BaseYearBounds_TooHigh[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
-    if Switch.switch_base_year_bounds_debugging == 0
-        for y ∈ 𝓨 for r ∈ 𝓡 for (t,f) ∈ Maps.Set_Tech_FuelOut
-            JuMP.fix(BaseYearBounds_TooLow[r,t,f,y], 0;force=true)
-            JuMP.fix(BaseYearBounds_TooHigh[r,t,f,y], 0;force=true)
-        end end end
+    # Debug-only slack variables: only declared when switch_base_year_bounds_debugging == 1.
+    # Production runs skip them entirely (lean LP, no BigM penalty rows, no fix-to-0 vars).
+    if Switch.switch_base_year_bounds_debugging == 1
+        BaseYearBounds_TooLow  = @variable(model, BaseYearBounds_TooLow[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
+        BaseYearBounds_TooHigh = @variable(model, BaseYearBounds_TooHigh[r=𝓡, t=𝓣, f=𝓕, y=𝓨; (t,f) ∈ Maps.Set_Tech_FuelOut] >= 0)
+        HeatingSlack           = @variable(model, HeatingSlack[𝓡, 𝓨] >= 0, container=DenseArray)
+    else
+        BaseYearBounds_TooLow  = nothing
+        BaseYearBounds_TooHigh = nothing
+        HeatingSlack           = nothing
     end
-
-    HeatingSlack= @variable(model, HeatingSlack[𝓡, 𝓨] >= 0, container=DenseArray)
 
     DiscountedSalvageValueTransmission= @variable(model, DiscountedSalvageValueTransmission[𝓨,𝓡] >= 0, container=DenseArray)
 

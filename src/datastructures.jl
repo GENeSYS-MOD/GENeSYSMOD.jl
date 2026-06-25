@@ -328,6 +328,11 @@ struct Parameters <: InputClass
     GroupTotalAnnualMaxCapacity ::JuMP.Containers.DenseAxisArray
     GroupTotalAnnualMinCapacity ::JuMP.Containers.DenseAxisArray
 
+    # Per-fuel time-independence tag read from Par_TagTimeIndependentFuel (Fuel, Value);
+    # 1 = the fuel balance is enforced annually rather than per timeslice. Fuels not
+    # listed default to 0 (the derived base in genesysmod_equ still applies on top).
+    TagTimeIndependentFuel ::JuMP.Containers.DenseAxisArray
+
     AnnualSectoralEmissionLimit ::JuMP.Containers.DenseAxisArray
 
     TotalAnnualMaxCapacityInvestment ::JuMP.Containers.DenseAxisArray
@@ -486,9 +491,9 @@ struct Variables
 
     RateOfTotalActivity ::Union{Nothing,VarDenseIISS}
 
-    BaseYearBounds_TooLow ::JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}
-    BaseYearBounds_TooHigh ::JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}
-    HeatingSlack ::VarDenseSI
+    BaseYearBounds_TooLow ::Union{Nothing, JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}}
+    BaseYearBounds_TooHigh ::Union{Nothing, JuMP.Containers.SparseAxisArray{VariableRef, 4, Tuple{String, String, String, Int}}}
+    HeatingSlack ::Union{Nothing, VarDenseSI}
 
     DiscountedSalvageValueTransmission ::VarDenseIS
 

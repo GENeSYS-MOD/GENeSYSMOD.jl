@@ -505,4 +505,12 @@ function timeseries_reduction!(Params, Sets, Switch)
         "YearSplit" => df_YearSplit, "TimeDepEfficiency" => df_TimeDepEfficiency)
     end
 
+    # Round tiny CapacityFactor values to zero. Source PV/solar timeseries carry a
+    # ~1e-6 twilight floor (numerical noise from the irradiance model) that
+    # propagates into CA3b matrix coefficients (CF * CapacityToActivityUnit ~ 3e-5)
+    # and widens the LP matrix range with no physical content. CF < 0.01 is well
+    # below model precision.
+    cf = Params.CapacityFactor.data
+    cf[(cf .> 0) .& (cf .< 0.01)] .= 0
+
 end

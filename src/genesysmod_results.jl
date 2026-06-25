@@ -235,7 +235,9 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     df_residual_capacity[!,:Type] .= "ResidualCapacity"
     df_residual_capacity[!,:PathwayScenario] .= "$(Switch.emissionPathway)_$(Switch.emissionScenario)"
 
-    df_total_capacity = convert_jump_container_to_df(value.(Vars.TotalCapacityAnnual[:,tmp_techs,:]);dim_names=[:Year, :Technology, :Region])
+    # Use all technologies; a leftover `tmp_techs` slice from an earlier loop had
+    # slipped in and silently dropped techs. Per-sector subsetting happens below.
+    df_total_capacity = convert_jump_container_to_df(value.(Vars.TotalCapacityAnnual[:,:,:]);dim_names=[:Year, :Technology, :Region])
     df_total_capacity[!,:Type] .= "TotalCapacity"
     df_total_capacity[!,:PathwayScenario] .= "$(Switch.emissionPathway)_$(Switch.emissionScenario)"
 
@@ -288,7 +290,10 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
         for e ∈ Sets.Emission, y ∈ Sets.Year
             tmp_val=0
             for r ∈ Sets.Region_full
-                value = dual(constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")) * (-1) * (1 + Settings.GeneralDiscountRate[r])^(y - Sets.Year[1])
+                # E8 is now generated only when a real limit is set (`< 999999`).
+                # No constraint => no shadow price (no binding scarcity) => endogenous CO2 price = 0.
+                cref = constraint_by_name(model,"E8_RegionalAnnualEmissionsLimit|$(y)|$(e)|$(r)")
+                value = cref === nothing ? 0.0 : dual(cref) * (-1) * (1 + Settings.GeneralDiscountRate[r])^(y - Sets.Year[1])
                 push!(df_endo_emission, (; Region=r, Emission=e, Year=y, Value=value))
                 tmp_val += value
             end
