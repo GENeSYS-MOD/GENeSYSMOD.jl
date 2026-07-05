@@ -798,7 +798,7 @@ run that will be read to fix some decision variables.\n
   2 (default) = GAMS behaviour, abort on hard errors.\n
 - **`switch_results_db ::Int8`** If 1 (default 0), all outputs (processed result tables,
   raw variables, VarPar intermediates) are written to a single DuckDB file
-  `genesysmod_results_db.duckdb` in the result directory — independent of the CSV
+  `genesysmod_db.duckdb` in the result directory — independent of the CSV
   switches (`switch_processed_results` gates only the CSV files). Tables are keyed by
   a `Scenario` column = `extr_str_results`: re-running a scenario first purges its rows
   from every table (so runs writing fewer tables leave no stale rows), a new scenario

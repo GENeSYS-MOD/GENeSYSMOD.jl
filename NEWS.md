@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+## Unreleased
+- One DuckDB file: the results database and the input-data dump database are merged
+  into a single `genesysmod_db.duckdb` (result tables `output_*`/`raw_*`/`varpar_*`/
+  `duals_*`, input dumps as `input_*` tables). Runs made before the merge are still
+  found: readers fall back to the old `genesysmod_results_db.duckdb` name.
+- New `Scripts/manage_results_db.py`: interactive manager for the results database
+  (list scenarios, rename, split into a separate file, purge, compact).
+- New group annual-addition limit `Par_GroupTotalAnnualMaxNewCap` (TCC5): caps the
+  summed annual NewCapacity of a technology subset x region subset from input data,
+  complementing the TCC3/TCC4 level limits.
+- SC2 (annual RE-additions cap) now floors at the min-capacity increment, so a
+  dataset whose capacity ceiling hugs a steeply rising exogenous minimum stays
+  feasible under switch_investLimit.
+
 ## v4.4.1
 - Emission-limit constraints (E8/E9/E10/E13) are only generated when a real limit is
   set (`< 999999`) instead of always adding a toothless `<= ~1e6` row; dual lookups

@@ -136,4 +136,4 @@ function genesysmod_getdualsbyname(model,Switch,extr_str, constr_name)
 end
 
 # The input-data dump moved to DuckDB: see dump_inputs_db in genesysmod_db.jl
-# (writes genesysmod_inputdata_db.duckdb with real dimension names).
+# (writes input_* tables into genesysmod_db.duckdb with real dimension names).
