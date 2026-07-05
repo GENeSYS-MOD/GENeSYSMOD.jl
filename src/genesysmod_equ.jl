@@ -647,8 +647,16 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
           for r ∈ 𝓡
             for t ∈ intersect(Sets.Technology, Params.Tags.TagTechnologyToSubsets["Renewables"])
                 if 𝓨[i] > 2025
+                    # SC2 must never cap below the new-build needed to stay on the
+                    # TotalAnnualMinCapacity path: a tight TotalAnnualMaxCapacity
+                    # (max ~ min) makes f*max alone starve a steep exogenous min ->
+                    # infeasible under switch_investLimit. min_inc is a constant
+                    # from input params (min, residual); keeps the model linear.
+                    rr_y  = max(0.0, Params.TotalAnnualMinCapacity[r,t,𝓨[i]]   - Params.ResidualCapacity[r,t,𝓨[i]])
+                    rr_ym = max(0.0, Params.TotalAnnualMinCapacity[r,t,𝓨[i-1]] - Params.ResidualCapacity[r,t,𝓨[i-1]])
+                    min_inc = max(0.0, rr_y - rr_ym)
                     @constraint(model,
-                    Vars.NewCapacity[𝓨[i],t,r] <= YearlyDifferenceMultiplier(𝓨[i-1],Sets)*Settings.NewRESCapacity*Params.TotalAnnualMaxCapacity[r,t,𝓨[i]],
+                    Vars.NewCapacity[𝓨[i],t,r] <= max(YearlyDifferenceMultiplier(𝓨[i-1],Sets)*Settings.NewRESCapacity*Params.TotalAnnualMaxCapacity[r,t,𝓨[i]], min_inc),
                     base_name="SC2_LimitAnnualCapacityAdditions|$(𝓨[i])|$(r)|$(t)")
                 end
             end
@@ -834,6 +842,15 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
             sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ techs_in_subset for r ∈ regs_in_subset)
               <= Params.GroupTotalAnnualMaxCapacity[ts,rs,y],
             base_name="TCC3_GroupMaxCapacityConstraint|$(y)|$(ts)|$(rs)")
+        end
+        # TCC5: aggregated upper limit on NewCapacity (annual additions) summed over
+        # the same subset x region subset -> smooths a tech group's build path
+        # from data, no per-tech/region hardcode. 999999 = no limit.
+        if Params.GroupTotalAnnualMaxNewCapacity[ts,rs,y] < 999999
+          @constraint(model,
+            sum(Vars.NewCapacity[y,t,r] for t ∈ techs_in_subset for r ∈ regs_in_subset)
+              <= Params.GroupTotalAnnualMaxNewCapacity[ts,rs,y],
+            base_name="TCC5_GroupMaxNewCapacityConstraint|$(y)|$(ts)|$(rs)")
         end
         if Params.GroupTotalAnnualMinCapacity[ts,rs,y] > 0
           @constraint(model,
