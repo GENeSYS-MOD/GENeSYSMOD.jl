@@ -1,7 +1,7 @@
 Release Notes
 =============
 
-## Unreleased
+## v4.5.0
 - One DuckDB file: the results database and the input-data dump database are merged
   into a single `genesysmod_db.duckdb` (result tables `output_*`/`raw_*`/`varpar_*`/
   `duals_*`, input dumps as `input_*` tables). Runs made before the merge are still
