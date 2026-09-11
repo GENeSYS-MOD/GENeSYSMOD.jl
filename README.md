@@ -12,3 +12,10 @@ The model covers the sectors electricity, buildings, industry, and transport. It
 
 You can learn more about the model, its origins and mathematical formulation in the [Model documentation](https://genesysmod.readthedocs.io/en/latest/about.html).
 You can learn more about the Julia implementation and the Julia specific features in the [docs](https://genesys-mod.github.io/GENeSYSMOD.jl/).
+
+## Compatibility
+ 
+| Component | Compatible versions |
+|------------|--------------------|
+| GENeSYS-MOD.gams | 4.1.x |
+| GENeSYS-MOD.data | 1.1.x |
