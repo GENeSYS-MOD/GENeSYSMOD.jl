@@ -472,6 +472,10 @@ function read_params(in_data, Sets, Switch, Tags)
     YearSplit = DenseArray(ones(length.([𝓛, 𝓨])...) * 1/length(𝓛), 𝓛, 𝓨)
     TimeDepEfficiency = DenseArray(ones(length.([𝓡, 𝓣, 𝓛, 𝓨])...), 𝓡, 𝓣, 𝓛, 𝓨)
     x_peakingDemand = DenseArray(zeros(length.([𝓡, 𝓢𝓮])...),𝓡, 𝓢𝓮)
+    # Capacity margin required on top of peak demand; scenario data may set a
+    # region-specific addition (PeakingSlackAdd), applied in genesysmod_equ.
+    PeakingSlack = DenseArray(fill(Float64(Switch.set_peaking_slack), length(𝓡), length(𝓨)), 𝓡, 𝓨)
+    PeakingSlackAdd = DenseArray(zeros(length(𝓡)), 𝓡)
 
 
     TradeCosts = DenseArray(zeros(length.([𝓡, 𝓕, 𝓨, 𝓡])...), 𝓡, 𝓕, 𝓨, 𝓡)
@@ -560,7 +564,7 @@ function read_params(in_data, Sets, Switch, Tags)
     ModalSplitByFuelAndModalType,EFactorConstruction, EFactorOM,
     EFactorManufacturing, EFactorFuelSupply, EFactorCoalJobs,CoalSupply, CoalDigging,
     RegionalAdjustmentFactor, LocalManufacturingFactor, DeclineRate,x_peakingDemand,
-    StorageE2PRatio)
+    StorageE2PRatio, PeakingSlack, PeakingSlackAdd)
 
     return Params, emp_Sets
 end
@@ -711,6 +715,8 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     CapacityFactor = aggregate_daa(Params_Full.CapacityFactor, 𝓡, 𝓡_full, Mean(), 𝓣, 𝓛, 𝓨)
     # no peaking constraint for the dispatch
     x_peakingDemand = aggregate_daa(Params_Full.x_peakingDemand,𝓡, 𝓡_full, Mean(), 𝓢𝓮)
+    PeakingSlack = aggregate_daa(Params_Full.PeakingSlack, 𝓡, 𝓡_full, Mean(), 𝓨)
+    PeakingSlackAdd = aggregate_daa(Params_Full.PeakingSlackAdd, 𝓡, 𝓡_full, Mean())
     TimeDepEfficiency = aggregate_daa(Params_Full.TimeDepEfficiency,𝓡, 𝓡_full, Mean(), 𝓣, 𝓛, 𝓨)
 
     SpecifiedDemandProfile = DenseArray(zeros(length.([𝓡, 𝓕, 𝓛, 𝓨])...), 𝓡, 𝓕, 𝓛, 𝓨)
@@ -743,7 +749,7 @@ function get_aggregate_params(Params_Full, Sets, Sets_full)
     ModalSplitByFuelAndModalType,EFactorConstruction, EFactorOM,
     EFactorManufacturing, EFactorFuelSupply, EFactorCoalJobs,CoalSupply, CoalDigging,
     RegionalAdjustmentFactor, LocalManufacturingFactor, DeclineRate,x_peakingDemand,
-    StorageE2PRatio)
+    StorageE2PRatio, PeakingSlack, PeakingSlackAdd)
 return Params
 end
 

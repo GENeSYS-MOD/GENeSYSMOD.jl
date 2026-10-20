@@ -277,6 +277,11 @@ for the Buildings and Industry sector across the year. This is a lower bound. Un
 - **`DeclineRate ::Union{Nothing,JuMP.Containers.DenseAxisArray}`** \n TODO
 - **`x_peakingDemand ::Union{Nothing,JuMP.Containers.DenseAxisArray}`** Peak demand in the
     original timeseries. Used for the peaking constraints.\n
+- **`PeakingSlack ::JuMP.Containers.DenseAxisArray`** Capacity margin required on top of
+    peak demand, per region and year. Initialised from `set_peaking_slack`. Unit: Factor.\n
+- **`PeakingSlackAdd ::JuMP.Containers.DenseAxisArray`** Region-specific addition to
+    `PeakingSlack`, set by scenario data and applied from `set_peaking_startyear` on.
+    Defaults to 0. Unit: Factor.\n
 - **`TagDemandFuelToSector ::JuMP.Containers.DenseAxisArray`** Tag to link fuels to sectors.\n
 - **`TagElectricTechnology ::JuMP.Containers.DenseAxisArray`** Indicate if a technology is
     considered to be "direct electrification".\n
@@ -398,6 +403,9 @@ struct Parameters <: InputClass
     x_peakingDemand ::Union{Nothing,JuMP.Containers.DenseAxisArray}
 
     StorageE2PRatio ::Union{Nothing,JuMP.Containers.DenseAxisArray}
+
+    PeakingSlack ::JuMP.Containers.DenseAxisArray
+    PeakingSlackAdd ::JuMP.Containers.DenseAxisArray
 end
 
 const VarDenseIS = JuMP.Containers.DenseAxisArray{VariableRef, 2, Tuple{Vector{Int}, Vector{String}}, Tuple{JuMP.Containers._AxisLookup{Dict{Int, Int}}, JuMP.Containers._AxisLookup{Dict{String, Int}}}}
