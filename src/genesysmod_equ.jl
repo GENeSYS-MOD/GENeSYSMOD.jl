@@ -1166,17 +1166,31 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
     convert_techs = get(Params.Tags.TagTechnologyToSubsets, "Convert", String[])
     dh_split_tf = Dict(se => [(t,f) for (t,f) ∈ Maps.Set_Tech_FuelOut
                               if Params.Tags.TagDemandFuelToSector[f,se] != 0 && t ∈ convert_techs] for se ∈ 𝓢𝓮)
+    # fuels that district heat is converted into (outputs of techs using Heat_District)
+    dh_fed_fuels = unique([f for (t,f) ∈ Maps.Set_Tech_FuelOut if (t,"Heat_District") ∈ Maps.Set_Tech_FuelIn])
+    # Share of the annual district heat falling in the modelled timeslices. 1 in investment
+    # runs; a dispatch over part of the year (dispatch_week) scales the annual bands to that
+    # part, using the demand of the fuels district heat feeds.
+    function dh_period_share(r, y, fuels)
+      Switch.switch_dispatch isa NoDispatch && return 1.0
+      annual = sum(Params.SpecifiedAnnualDemand[r,f,y] for f ∈ fuels; init=0.0)
+      annual > 0 || return 1.0
+      return sum(Params.Demand[y,l,f,r] for f ∈ fuels for l ∈ 𝓛; init=0.0) / annual
+    end
     for r ∈ 𝓡, y ∈ 𝓨
       if Params.DistrictHeatDemand[r,y] != 0 && !isempty(dh_techs)
         dh_conv = "X_Convert_HD" ∈ 𝓣 ? Params.InputActivityRatio[r,"X_Convert_HD","Heat_District",1,y] : 0.0
-        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) >= Params.DistrictHeatDemand[r,y]*dh_conv*0.95,
+        dh_annual = Params.DistrictHeatDemand[r,y]*dh_conv*dh_period_share(r, y, dh_fed_fuels)
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) >= dh_annual*0.95,
         base_name="DH1a_DistrictHeatProductionAnnualLowerLimit|$(r)|Heat_District|$(y)")
-        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) <= Params.DistrictHeatDemand[r,y]*dh_conv*1.05,
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) <= dh_annual*1.05,
         base_name="DH1b_DistrictHeatProductionAnnualUpperLimit|$(r)|Heat_District|$(y)")
       end
       for se ∈ 𝓢𝓮
         if Params.DistrictHeatSplit[r,se,y] != 0 && !isempty(dh_split_tf[se])
-          @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,f,r] for (t,f) ∈ dh_split_tf[se]) >= Params.DistrictHeatDemand[r,y]*Params.DistrictHeatSplit[r,se,y],
+          se_fuels = intersect(unique(f for (t,f) ∈ dh_split_tf[se]), dh_fed_fuels)
+          se_share = dh_period_share(r, y, isempty(se_fuels) ? unique(f for (t,f) ∈ dh_split_tf[se]) : se_fuels)
+          @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,f,r] for (t,f) ∈ dh_split_tf[se]) >= Params.DistrictHeatDemand[r,y]*Params.DistrictHeatSplit[r,se,y]*se_share,
           base_name="DH2_DistrictHeatProductionSplit|$(r)|$(se)|$(y)")
         end
       end

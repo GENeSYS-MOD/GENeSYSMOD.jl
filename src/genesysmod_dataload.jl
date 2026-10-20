@@ -811,6 +811,23 @@ function aggregate_params(Switch, Sets_full, Params_full, s_dispatch::TwoNodes)
         Params.SpecifiedDemandProfile[considered_regions[1],f,l,y] = Params_full.SpecifiedDemandProfile[considered_regions[1],f,l,y]
     end end end
 
+    # district heating: weight the aggregated region's split and conversion ratio by
+    # district heat demand, so DH1/DH2 equal the sum over the regions it stands for
+    for y in 𝓨
+        sum_dh = sum(Params_full.DistrictHeatDemand[r,y] for r in 𝓡_full if r!=considered_regions[1])
+        sum_dh == 0 && continue
+        for se in 𝓢𝓮
+            Params.DistrictHeatSplit[considered_regions[2],se,y] =
+            sum(Params_full.DistrictHeatDemand[r,y]*Params_full.DistrictHeatSplit[r,se,y] for r in 𝓡_full if r!=considered_regions[1])/sum_dh
+        end
+        if "X_Convert_HD" ∈ 𝓣 && "Heat_District" ∈ 𝓕
+            for m in 𝓜
+                Params.InputActivityRatio[considered_regions[2],"X_Convert_HD","Heat_District",m,y] =
+                sum(Params_full.DistrictHeatDemand[r,y]*Params_full.InputActivityRatio[r,"X_Convert_HD","Heat_District",m,y] for r in 𝓡_full if r!=considered_regions[1])/sum_dh
+            end
+        end
+    end
+
     for y ∈ 𝓨 for l ∈ 𝓛 for r ∈ 𝓡
         for f ∈ 𝓕
             Params.RateOfDemand[y,l,f,r] = Params.SpecifiedAnnualDemand[r,f,y]*Params.SpecifiedDemandProfile[r,f,l,y] / Params.YearSplit[l,y]
