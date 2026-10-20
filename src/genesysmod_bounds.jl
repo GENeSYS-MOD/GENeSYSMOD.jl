@@ -126,6 +126,10 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
             end
     end end
 
+    # An unset group capacity limit is inactive (999999 sentinel), not a hard zero cap.
+    gmax = Params.GroupTotalAnnualMaxCapacity
+    gmax.data[gmax.data .== 0] .= 999999
+
 #=     for r ∈ Sets.Region_full
         for t ∈ Params.Tags.TagTechnologyToSubsets["ImportTechnology"]
             for y ∈ Sets.Year

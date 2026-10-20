@@ -98,10 +98,18 @@ module ScenarioDataEurope
 
         if envis
         # Limit capacity expansion in 2025 to only actually (historically) installed capacities
-        # (matches GAMS: clamp only when BOTH AnnualMinNewCapacity and TotalAnnualMinCapacity are 0).
+        # (matches GAMS: clamp only when AnnualMinNewCapacity, TotalAnnualMinCapacity and every
+        # group minimum covering the technology are 0).
         # NECP-planned RES techs are exempt (GAMS NewCapacity.up = +INF).
+        group_min_2025 = Set{Tuple{String,String}}()
+        for (ts, techs) ∈ Params.Tags.TagTechnologyToSubsets, (rs, regs) ∈ Params.Tags.TagRegionToSubsets
+            Params.GroupTotalAnnualMinCapacity[ts,rs,2025] != 0 || continue
+            for t ∈ techs, r ∈ regs
+                push!(group_min_2025, (r,t))
+            end
+        end
         for r ∈ Sets.Region_full, t ∈ Params.Tags.TagTechnologyToSubsets["PowerSupply"]
-            if Params.AnnualMinNewCapacity[r,t,2025] == 0 && Params.TotalAnnualMinCapacity[r,t,2025] == 0 && !((r,t) ∈ necp_released)
+            if Params.AnnualMinNewCapacity[r,t,2025] == 0 && Params.TotalAnnualMinCapacity[r,t,2025] == 0 && (r,t) ∉ group_min_2025 && !((r,t) ∈ necp_released)
                 @constraint(model, Vars.NewCapacity[2025,t,r] <= 0, base_name="ScenarioData_Europe_NewCapacity_2025_$(t)_$(r)")
             end
         end
