@@ -15,13 +15,6 @@ module ScenarioDataEurope
             Params.AvailabilityFactor[:,"X_DAC_LT",:] .= 0
         end
 
-        for r ∈ Sets.Region_full, t ∈ Sets.Technology, y ∈ Sets.Year
-            if Params.TotalAnnualMaxCapacity[r,t,y] < Params.TotalAnnualMinCapacity[r,t,2025]
-                println("TotalAnnualMaxCapacity[$r,$t,$y] is lower than TotalAnnualMinCapacity[$r,$t,2025], check the data! Setting the value to TotalAnnualMinCapacity[$r,$t,2025].")
-                Params.TotalAnnualMaxCapacity[r,t,y] = Params.TotalAnnualMinCapacity[r,t,2025]
-            end
-        end
-
         # NECP capacity plans (NECPEssentials only). Built before the 2025 clamp so
         # the planned RES techs can be exempted from it (mirrors GAMS where the
         # NewCapacity.up = +INF assignment overwrites the earlier .up = 0 bound).
