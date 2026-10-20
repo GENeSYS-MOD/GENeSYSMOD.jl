@@ -307,6 +307,17 @@ function genesysmod_dispatch(;elmod_nthhour = 1, elmod_starthour = 1, solver, DN
     return model, Dict("Sets" => Sets, "Params" => Params, "Switch" => switch)
 end
 
+"""
+Raise TotalAnnualMaxCapacity to the capacity fixed from the investment run wherever it is
+lower. The dispatch takes its capacities from that run, so its own capacity limits must not
+be tighter: the dispatch build skips errorcheck and scenario data, which can raise them.
+"""
+function allow_fixed_capacity!(Params, y, t, r, cap)
+    if Params.TotalAnnualMaxCapacity[r,t,y] < cap
+        Params.TotalAnnualMaxCapacity[r,t,y] = cap
+    end
+end
+
 function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_dispatch::OneNodeSimple)
     # read investment results for relevant variables
     tmp_TotalCapacityAnnual, tmp_TotalTradeCapacity, tmp_TotalStorageCapacityAnnual = read_investments(Sets, Switch, Switch.switch_raw_results)
@@ -316,6 +327,7 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     # make constraints fixing investments
     for y ∈ Sets.Year for r ∈ Sets.Region_full
         for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
+            allow_fixed_capacity!(Params, y, t, r, tmp_TotalCapacityAnnual[y,t,r])
             @constraint(model, model[:TotalCapacityAnnual][y,t,r] == tmp_TotalCapacityAnnual[y,t,r],
             base_name="Fix_Investments_$(y)_$(t)_$(r)")
         end
@@ -356,7 +368,9 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     # make constraints fixing investments
     for y ∈ Sets.Year for r ∈ Sets.Region_full
         for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
-            fix(model[:TotalCapacityAnnual][y,t,r], tmp_TotalCapacityAnnual[y,t,r]!= 0 ? max(threshold,tmp_TotalCapacityAnnual[y,t,r]) : 0; force=true)
+            cap = tmp_TotalCapacityAnnual[y,t,r] != 0 ? max(threshold,tmp_TotalCapacityAnnual[y,t,r]) : 0
+            allow_fixed_capacity!(Params, y, t, r, cap)
+            fix(model[:TotalCapacityAnnual][y,t,r], cap; force=true)
         end
         if Switch.switch_infeasibility_tech == 1
             for t ∈ Params.Tags.TagTechnologyToSubsets["DummyTechnology"]
@@ -407,8 +421,12 @@ function fix_investments!(model, Switch, Sets, Params, Maps, region_full, s_disp
     # make constraints fixing investments
     for y ∈ Sets.Year
         for t ∈ setdiff(Sets.Technology, Params.Tags.TagTechnologyToSubsets["DummyTechnology"])
-            fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[2]], sum(tmp_TotalCapacityAnnual[y,t,re] for re in region_full if re!=Sets.Region_full[1]); force=true)
-            fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[1]], tmp_TotalCapacityAnnual[y,t,Sets.Region_full[1]]; force=true)
+            cap_rest = sum(tmp_TotalCapacityAnnual[y,t,re] for re in region_full if re!=Sets.Region_full[1])
+            cap_node = tmp_TotalCapacityAnnual[y,t,Sets.Region_full[1]]
+            allow_fixed_capacity!(Params, y, t, Sets.Region_full[2], cap_rest)
+            allow_fixed_capacity!(Params, y, t, Sets.Region_full[1], cap_node)
+            fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[2]], cap_rest; force=true)
+            fix(model[:TotalCapacityAnnual][y,t,Sets.Region_full[1]], cap_node; force=true)
             # @constraint(model, model[:TotalCapacityAnnual][y,t,r] == tmp_TotalCapacityAnnual[y,t,r],
             # base_name="Fix_Investments_$(y)_$(t)_$(r)")
         end
