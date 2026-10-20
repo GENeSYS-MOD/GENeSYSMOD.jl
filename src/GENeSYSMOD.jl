@@ -43,6 +43,7 @@ include("genesysmod_levelizedcosts.jl")
 include("genesysmod_emissionintensity.jl")
 include("genesysmod_dispatch.jl")
 include.(filter(f-> occursin(r".jl$",f) && occursin("scenariodata",f), readdir(joinpath(pkgdir(GENeSYSMOD,"src")))))
+include.(joinpath.("projects", filter(f-> occursin(r".jl$",f) && occursin("scenariodata",f), readdir(joinpath(pkgdir(GENeSYSMOD,"src"),"projects")))))
 
 export genesysmod, genesysmod_dispatch
 export genesysmod_build_model, genesysmod_build_model_dispatch

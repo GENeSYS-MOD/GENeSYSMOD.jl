@@ -87,7 +87,8 @@ function genesysmod_build_model_dispatch(;elmod_nthhour = 1, elmod_starthour=1, 
     switch_reserve,
     switch_errorcheck,
     switch_results_db,
-    switch_endogenous_specifieddemandforecasting)
+    switch_endogenous_specifieddemandforecasting,
+    "none") # project_scenario: the dispatch build applies no scenario data
 
     starttime= Dates.now()
     model= JuMP.Model()
