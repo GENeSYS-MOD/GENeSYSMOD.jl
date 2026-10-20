@@ -1159,6 +1159,31 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   end end
   print("Cstr: Storage 1 : ",Dates.now()-start,"\n")
 
+  ######### District Heating Equations #############
+  start=Dates.now()
+  if "Heat_District" ∈ 𝓕
+    dh_techs = [t for (t,f) ∈ Maps.Set_Tech_FuelOut if f == "Heat_District"]
+    convert_techs = get(Params.Tags.TagTechnologyToSubsets, "Convert", String[])
+    dh_split_tf = Dict(se => [(t,f) for (t,f) ∈ Maps.Set_Tech_FuelOut
+                              if Params.Tags.TagDemandFuelToSector[f,se] != 0 && t ∈ convert_techs] for se ∈ 𝓢𝓮)
+    for r ∈ 𝓡, y ∈ 𝓨
+      if Params.DistrictHeatDemand[r,y] != 0 && !isempty(dh_techs)
+        dh_conv = "X_Convert_HD" ∈ 𝓣 ? Params.InputActivityRatio[r,"X_Convert_HD","Heat_District",1,y] : 0.0
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) >= Params.DistrictHeatDemand[r,y]*dh_conv*0.95,
+        base_name="DH1a_DistrictHeatProductionAnnualLowerLimit|$(r)|Heat_District|$(y)")
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) <= Params.DistrictHeatDemand[r,y]*dh_conv*1.05,
+        base_name="DH1b_DistrictHeatProductionAnnualUpperLimit|$(r)|Heat_District|$(y)")
+      end
+      for se ∈ 𝓢𝓮
+        if Params.DistrictHeatSplit[r,se,y] != 0 && !isempty(dh_split_tf[se])
+          @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,f,r] for (t,f) ∈ dh_split_tf[se]) >= Params.DistrictHeatDemand[r,y]*Params.DistrictHeatSplit[r,se,y],
+          base_name="DH2_DistrictHeatProductionSplit|$(r)|$(se)|$(y)")
+        end
+      end
+    end
+  end
+  print("Cstr: District Heat : ",Dates.now()-start,"\n")
+
   ######### Transportation Equations #############
   start=Dates.now()
   if Switch.switch_dispatch isa TwoNodes

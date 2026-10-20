@@ -148,22 +148,6 @@ module ScenarioDataEurope
         # Curtailment cost factor (GAMS scalar = 45)
         Params.CurtailmentCostFactor[:,:,:] .= 45
 
-        for r ∈ Sets.Region_full, y ∈ Sets.Year
-            if Params.DistrictHeatDemand[r,y] != 0
-                @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ [t_ for (t_,f_) ∈ Maps.Set_Tech_FuelOut if f_ == "Heat_District"]) >= Params.DistrictHeatDemand[r,y]*Params.InputActivityRatio[r,"X_Convert_HD","Heat_District",1,y]*0.95,
-                base_name="DistrictHeatProductionAnnualLowerLimit|$(r)|Heat_District|$(y)")
-                @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ [t_ for (t_,f_) ∈ Maps.Set_Tech_FuelOut if f_ == "Heat_District"]) <= Params.DistrictHeatDemand[r,y]*Params.InputActivityRatio[r,"X_Convert_HD","Heat_District",1,y]*1.05,
-                base_name="DistrictHeatProductionAnnualUpperLimit|$(r)|Heat_District|$(y)")
-            end
-
-            for se ∈ Sets.Sector
-                if Params.DistrictHeatSplit[r,se,y] != 0
-                    @constraint(model,sum(Vars.ProductionByTechnologyAnnual[y,t,f,r] for (t,f) ∈ Maps.Set_Tech_FuelOut if (Params.Tags.TagDemandFuelToSector[f,se] != 0 && t ∈ Params.Tags.TagTechnologyToSubsets["Convert"])) >= Params.DistrictHeatDemand[r,y]*Params.DistrictHeatSplit[r,se,y],
-                    base_name="DistrictHeatProductionSplit|$(r)|$(se)|$(y)")
-                end
-            end
-        end
-
         # NECP capacity expansion: pin planned RES capacities (NECPEssentials only)
         if Switch.emissionPathway == "NECPEssentials"
             powersupply = Params.Tags.TagTechnologyToSubsets["PowerSupply"]
