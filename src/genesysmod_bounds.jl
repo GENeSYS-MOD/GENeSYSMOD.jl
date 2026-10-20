@@ -341,7 +341,7 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
         end
         if "P_CSP" ∈ Sets.Technology
             try
-                Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Opt",Sets.Timeslice[i],y]
+                Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Tracking",Sets.Timeslice[i],y]
             catch e
                 if isa(e, KeyError)
                     Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Avg",Sets.Timeslice[i],y]
