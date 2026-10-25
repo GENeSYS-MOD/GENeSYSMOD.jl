@@ -43,8 +43,8 @@ It reads scenario data from Excel, builds a large LP, solves it
 
 - **Result CSVs** are written when `switch_processed_results = 1`. Processed
   outputs are rounded to 4 digits (GAMS parity).
-- **DuckDB results database** (`switch_results_db = 1`): all outputs go to
-  `genesysmod_results_db.duckdb` in `resultdir` — processed tables (`output_*`),
+- **DuckDB database** (`switch_results_db = 1`): one file, `genesysmod_db.duckdb`
+  in `resultdir` (results + input data merged) — processed tables (`output_*`),
   raw variables (`raw_*`), `Variable_Parameters` intermediates (`varpar_*`) and
   selected duals (`duals_*`). Every table carries a `Scenario` column
   (= `extr_str_results`): re-running a scenario first purges its rows from every
@@ -52,10 +52,10 @@ It reads scenario data from Excel, builds a large LP, solves it
 - **Run configuration** is recorded with the results: every `Switch` field is
   written to an `output_switches` table/CSV, so a run's exact setup travels with
   its outputs.
-- **Input-data database**: `switch_test_data_load = 1` dumps the fully processed
-  input parameters to `genesysmod_inputdata_db.duckdb` (one table per parameter
-  and per set, real dimension names, `Params.Tags` included) and stops before the
-  solve; `switch_dump_input_data = 1` writes the same dump and continues.
+- **Input-data dump**: `switch_test_data_load = 1` dumps the fully processed
+  input parameters into the same file as `input_*` tables (one per parameter
+  and per set, real dimension names, `Params.Tags` included) and stops before
+  the solve; `switch_dump_input_data = 1` writes the same dump and continues.
 - Raw dumps and DB tables use **real dimension names** (Region, Technology, Fuel,
   Year, …), not `x1..xN`.
 - DB handles are released at run end (`release_dbs()`, exported); a write blocked

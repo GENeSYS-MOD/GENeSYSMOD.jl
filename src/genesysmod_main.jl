@@ -223,7 +223,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch = case["Switch"]
 
     # switch_test_data_load: dump the processed input parameters to DuckDB
-    # (genesysmod_inputdata_db.duckdb) for inspection, then stop before solver
+    # (input_* tables in genesysmod_db.duckdb) for inspection, then stop before solver
     # setup / optimize! (mirrors the GAMS switch_test_data_load behaviour).
     # The data in case["Params"] here is post-interpolation/aggregation, so
     # this verifies the full read + process.
@@ -235,7 +235,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     end
 
     # switch_dump_input_data: same input dump as switch_test_data_load
-    # (genesysmod_inputdata_db.duckdb), but the run continues into the solve.
+    # (input_* tables in genesysmod_db.duckdb), but the run continues into the solve.
     if switch_dump_input_data == 1
         _db_attempt(() -> dump_inputs_db(case, switch), "input data dump")
     end

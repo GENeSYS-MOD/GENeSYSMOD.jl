@@ -1,19 +1,20 @@
 """
 DuckDB result/input writers.
 
-Two database files, both living in the result directory:
+One database file, `genesysmod_db.duckdb`, living in the result directory and
+holding both the inputs and the outputs of a run:
 
-  * `genesysmod_results_db.duckdb`  — model outputs (raw variables, VarPar,
-    processed result tables). Every table carries a `Scenario` column set to
-    `extr_str_results`; writing the same scenario again overwrites exactly
-    those rows (DELETE + INSERT in one transaction), a new scenario appends.
-    `Region`/`Pathway` context columns are included so several model regions
-    or pathways can share one file.
-  * `genesysmod_inputdata_db.duckdb` — the processed input parameters written
-    by `switch_test_data_load` (one table per parameter, one `SET_*` table per
-    index set). Mirrors the former SQLite dump, now with real dimension names.
+  * model outputs (raw variables, VarPar, processed result tables). Every
+    table carries a `Scenario` column set to `extr_str_results`; writing the
+    same scenario again overwrites exactly those rows (DELETE + INSERT in one
+    transaction), a new scenario appends. `Region`/`Pathway` context columns
+    are included so several model regions or pathways can share one file.
+  * the processed input parameters written by `switch_test_data_load` /
+    `switch_dump_input_data`, prefixed `input_` — one `input_<Parameter>`
+    table per parameter, `input_SET_*` per index set, `input_<Tag>` per tag.
+    Re-dumping replaces only the `input_*` tables; result tables are untouched.
 
-Open either file with DBeaver (DuckDB driver, read-only while a run writes),
+Open the file with DBeaver (DuckDB driver, read-only while a run writes),
 DuckDB CLI, Python (`duckdb` package) or Julia.
 """
 
@@ -90,11 +91,15 @@ end
 # DuckDB plumbing
 # ---------------------------------------------------------------------------
 
-const RESULTS_DB_FILENAME = "genesysmod_results_db.duckdb"
-const INPUTDATA_DB_FILENAME = "genesysmod_inputdata_db.duckdb"
+const DB_FILENAME = "genesysmod_db.duckdb"
+# Pre-merge filename (results-only db) — used as a read fallback so dispatch
+# still finds the investment results of runs made before the merge.
+const LEGACY_RESULTS_DB_FILENAME = "genesysmod_results_db.duckdb"
 
-_results_db_path(Switch) = joinpath(Switch.resultdir[], RESULTS_DB_FILENAME)
-_inputdata_db_path(Switch) = joinpath(Switch.resultdir[], INPUTDATA_DB_FILENAME)
+_db_path(Switch) = joinpath(Switch.resultdir[], DB_FILENAME)
+# Both writers share one file since the input/results merge.
+_results_db_path(Switch) = _db_path(Switch)
+_inputdata_db_path(Switch) = _db_path(Switch)
 
 # One cached handle per database file per process. DuckDB does not allow a
 # second handle on the same file within one process (and closing a handle
@@ -111,8 +116,9 @@ end
 """
     release_dbs()
 
-Close all DuckDB handles held by this Julia process (results + input-data
-databases). Closing checkpoints the .wal into the main file and releases the
+Close all DuckDB handles held by this Julia process (the merged
+`genesysmod_db.duckdb`, dispatch db, legacy files). Closing checkpoints the
+.wal into the main file and releases the
 file lock, so the .duckdb can be opened in DBeaver etc. without ending the
 Julia session. Called automatically at the end of a model run; safe to call
 manually any time — the next write simply reopens the file.
@@ -289,7 +295,7 @@ end
 
 """
 Write the processed result tables (the same DataFrames the output_*.csv
-writers produce) into `genesysmod_results_db.duckdb`, keyed by scenario.
+writers produce) into `genesysmod_db.duckdb`, keyed by scenario.
 """
 function write_processed_results_db(tables::AbstractDict, Sets, Switch, extr_str)
     con = _db_connect(_results_db_path(Switch))
@@ -301,7 +307,7 @@ end
 
 """
 Write raw model variables, the VarPar intermediates and Demand/RateOfDemand
-into `genesysmod_results_db.duckdb` (tables prefixed raw_/varpar_), keyed by
+into `genesysmod_db.duckdb` (tables prefixed raw_/varpar_), keyed by
 scenario like the processed tables.
 """
 function write_raw_results_db(model, VarPar, Params, Sets, Switch, extr_str)
@@ -335,7 +341,7 @@ end
 """
 Write a duals frame — the (constraint-name, dual-value) DataFrame produced by
 `genesysmod_getspecifiedduals` / `genesysmod_getdualsbyname` — into
-`genesysmod_results_db.duckdb` as `duals_<label>`, keyed by scenario like the
+`genesysmod_db.duckdb` as `duals_<label>`, keyed by scenario like the
 other result tables (columns renamed to `Constraint`/`Dual`). Empty frame is a
 no-op; wrapped in `_db_attempt` so a locked file never aborts the run.
 """
@@ -354,25 +360,21 @@ end
 # ---------------------------------------------------------------------------
 
 """
-Dump the processed input data to `genesysmod_inputdata_db.duckdb` — one table
-per parameter (real dimension names), one `SET_*` table per index set.
-Successor of the former SQLite dump; the file is recreated on every dump.
+Dump the processed input data into `genesysmod_db.duckdb` (shared with the
+result tables) — one `input_<Parameter>` table per parameter (real dimension
+names), one `input_SET_*` table per index set, `input_<Tag>` per tag.
+Re-dumping drops and rewrites ONLY the `input_*` tables; the result tables in
+the same file are never touched.
 """
 function dump_inputs_db(case, switch::Switch)
     Params = case["Params"]
     Sets   = case["Sets"]
     dbpath = _inputdata_db_path(switch)
-    # Recreate content. The file cannot be deleted if this process already
-    # holds the handle, so drop all existing tables through it instead.
-    if haskey(_DB_HANDLES, abspath(dbpath))
-        con = _db_connect(dbpath)
-        for t in DataFrame(DBInterface.execute(con,
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'")).table_name
-            DBInterface.execute(con, "DROP TABLE IF EXISTS $(_quote_ident(t))")
-        end
-    else
-        isfile(dbpath) && rm(dbpath)
-        con = _db_connect(dbpath)
+    con = _db_connect(dbpath)
+    for t in DataFrame(DBInterface.execute(con,
+            "SELECT table_name FROM information_schema.tables " *
+            "WHERE table_schema = 'main' AND table_name LIKE 'input\\_%' ESCAPE '\\'")).table_name
+        DBInterface.execute(con, "DROP TABLE IF EXISTS $(_quote_ident(t))")
     end
     ntables = 0
     for field in fieldnames(typeof(Params))
@@ -383,7 +385,7 @@ function dump_inputs_db(case, switch::Switch)
             isempty(df) && continue
             reg = "df_in"
             DuckDB.register_data_frame(con, df, reg)
-            DBInterface.execute(con, "CREATE TABLE $(_quote_ident(field)) AS SELECT * FROM $(_quote_ident(reg))")
+            DBInterface.execute(con, "CREATE TABLE $(_quote_ident("input_" * string(field))) AS SELECT * FROM $(_quote_ident(reg))")
             DuckDB.unregister_data_frame(con, reg)
             ntables += 1
         catch e
@@ -409,7 +411,7 @@ function dump_inputs_db(case, switch::Switch)
                 isempty(df) && continue
                 reg = "df_tag"
                 DuckDB.register_data_frame(con, df, reg)
-                DBInterface.execute(con, "CREATE TABLE $(_quote_ident(string(tf))) AS SELECT * FROM $(_quote_ident(reg))")
+                DBInterface.execute(con, "CREATE TABLE $(_quote_ident("input_" * string(tf))) AS SELECT * FROM $(_quote_ident(reg))")
                 DuckDB.unregister_data_frame(con, reg)
                 ntables += 1
             catch e
@@ -423,7 +425,7 @@ function dump_inputs_db(case, switch::Switch)
         try
             reg = "df_set"
             DuckDB.register_data_frame(con, DataFrame(value = collect(s)), reg)
-            DBInterface.execute(con, "CREATE TABLE $(_quote_ident("SET_" * string(field))) AS SELECT * FROM $(_quote_ident(reg))")
+            DBInterface.execute(con, "CREATE TABLE $(_quote_ident("input_SET_" * string(field))) AS SELECT * FROM $(_quote_ident(reg))")
             DuckDB.unregister_data_frame(con, reg)
             ntables += 1
         catch e
