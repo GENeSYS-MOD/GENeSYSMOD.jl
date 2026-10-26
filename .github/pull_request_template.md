@@ -20,4 +20,5 @@ Closes # (issue number, if applicable)
 - [ ] Relevant issues linked
 - [ ] NEWS.md updated
 - [ ] Version number increase applied (if planned for release)
+- [ ] Updated compatibility with GAMS and Data in COMPAT and README file
 - [ ] Reviewers assigned
