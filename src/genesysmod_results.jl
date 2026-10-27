@@ -373,7 +373,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     merge_df!(df_tmp, dict_col_value, output_technology_costs_detailed, colnames)
 
     setindex!(dict_col_value, "Levelized Costs [Total]", :Type)
-    df_tmp = convert_jump_container_to_df(lc_tot_st;dim_names=[:Region, :Technology, :Fuel, :Year])
+    df_tmp = convert_jump_container_to_df(lc_tot_st;dim_names=[:Region, :Technology, :Year, :Fuel])
     merge_df!(df_tmp, dict_col_value, output_technology_costs_detailed, colnames)
 
 
@@ -411,7 +411,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     merge_df!(df_tmp, dict_col_value, output_technology_costs_detailed, colnames)
 
     setindex!(dict_col_value, "Levelized Costs [Total]", :Type)
-    df_tmp = convert_jump_container_to_df(lc_tot_st*3.6;dim_names=[:Region, :Technology, :Fuel, :Year])
+    df_tmp = convert_jump_container_to_df(lc_tot_st*3.6;dim_names=[:Region, :Technology, :Year, :Fuel])
     merge_df!(df_tmp, dict_col_value, output_technology_costs_detailed, colnames)
 
     dict_col_value = Dict(:Type=>"Carbon Price", :Unit=>"EUR/t CO2", :Technology=>"Carbon")
