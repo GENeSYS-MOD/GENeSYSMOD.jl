@@ -335,7 +335,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
     lc_gen = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Year),length(Sets.Fuel)), Sets.Region_full, Sets.Technology, Sets.Year, Sets.Fuel)
     lc_tot_w_em = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Year),length(Sets.Fuel)), Sets.Region_full, Sets.Technology, Sets.Year, Sets.Fuel)
     lc_tot_wo_em = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Year),length(Sets.Fuel)), Sets.Region_full, Sets.Technology, Sets.Year, Sets.Fuel)
-    lc_tot_st = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Year),length(Sets.Fuel)), Sets.Region_full, Sets.Technology, Sets.Year, Sets.Fuel)
+    lc_tot_st = JuMP.Containers.DenseAxisArray(zeros(length(Sets.Region_full),length(Sets.Technology),length(Sets.Fuel),length(Sets.Year)), Sets.Region_full, Sets.Technology, Sets.Fuel, Sets.Year)
 
     for r ∈ Sets.Region_full for t ∈ Sets.Technology for y ∈ Sets.Year
         for f ∈ Sets.Fuel
@@ -353,7 +353,7 @@ function genesysmod_results(model,Sets, Params, VarPar, Vars, Switch, Settings, 
                 end
             end
             if  Params.Tags.TagTechnologyToSector[t,"Storages"] != 0 && Params.OutputActivityRatio[r,t,"Power",2,y] != 0 && sum(Params.InputActivityRatio[r,t,f,:,y]) != 0
-                lc_tot_st[r,t,y,f] = Params.VariableCost[r,t,1,y]*5
+                lc_tot_st[r,t,f,y] = Params.VariableCost[r,t,1,y]*5
             end
         end
     end end end
