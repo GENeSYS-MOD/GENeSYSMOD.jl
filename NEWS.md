@@ -4,7 +4,8 @@ Release Notes
 ## Unreleased
 - Fix: the storage rows of `output_technology_costs_detailed` (`Levelized Costs [Total]`,
   MEUR/PJ and EUR/MWh) had the `Fuel` and `Year` columns swapped. `lc_tot_st` is now
-  written in the order it is built with (Region, Technology, Year, Fuel), like all other rows.
+  built with the year as the last dimension (Region, Technology, Fuel, Year), the order
+  it is written in.
 
 ## v4.5.0
 - One DuckDB file: the results database and the input-data dump database are merged
