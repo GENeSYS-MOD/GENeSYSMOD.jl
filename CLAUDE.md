@@ -34,6 +34,9 @@ It reads scenario data from Excel, builds a large LP, solves it
   keying, handle release/retry).
 - `genesysmod_errorcheck.jl` — input-data validation (port of
   `genesysmod_errorcheck.gms`).
+- `projects/genesysmod_scenariodata_<name>.jl` — optional project scenario overlays
+  (module `ScenarioData<Name>`), selected with `project_scenario` and applied after the
+  region scenario data.
 - `datastructures.jl` — `Sets`, `Parameters`, `Variables`, `Maps`, `Settings`,
   `Variable_Parameters` structs.
 - `utils.jl` — `create_daa` (builds parameter `DenseAxisArray`s),
@@ -104,11 +107,14 @@ This package is a port of the original GAMS model in the separate
   GAMS `$` conditions map to Julia `if` / guarded loops (`not X` → `== 0`);
   parameter index order must match exactly.
 - `genesysmod_scenariodata_europe.jl` mirrors
-  `genesysmod_scenariodata_europe.gms`. In GAMS the `emissionPathway` switch
-  picks an `$ifthen` branch (`NECPEssentials` / `REPowerEU` / `Green` /
-  `Trinity`); the Julia version selects the equivalent branch by scenario.
-  The `NECPEssentials` branch adds the `NECPCapacityPlans` data, the
-  `necp_released` set, and the `NECPCapacityExpansion` constraints.
+  `genesysmod_scenariodata_europe.gms`. Its EnVis bounds apply only to the four
+  EnVis pathways; the 2025 historic-capacity lock is a `NewCapacity` upper bound
+  (GAMS `.up`), so a project overlay can lift it with `delete_upper_bound`.
+- `src/projects/*.jl` mirror `projects/*.gms`. In GAMS the `emissionPathway` switch
+  picks an `$ifthen` branch (`NECPEssentials` / `REPowerEU` / `Green` / `Trinity`);
+  the Julia overlay selects the equivalent branch with `if`. `man0euvre` holds the
+  pathway blocks, `PeakingSlackAdd`, and the `NECPCapacityPlans` data with the
+  `NECPCapacityExpansion` constraints.
 
 ## Input data
 

@@ -126,6 +126,10 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
             end
     end end
 
+    # An unset group capacity limit is inactive (999999 sentinel), not a hard zero cap.
+    gmax = Params.GroupTotalAnnualMaxCapacity
+    gmax.data[gmax.data .== 0] .= 999999
+
 #=     for r ∈ Sets.Region_full
         for t ∈ Params.Tags.TagTechnologyToSubsets["ImportTechnology"]
             for y ∈ Sets.Year
@@ -333,15 +337,17 @@ function genesysmod_bounds(model,Sets,Params, Vars,Settings,Switch,Maps)
 
     for r ∈ Sets.Region_full for i ∈ 1:length(Sets.Timeslice) for y ∈ Sets.Year
         if Switch.switch_dispatch isa NoDispatch
-            for s in intersect(Sets.Storage, ["S_Battery_Li-Ion","S_Battery_Redox","S_Heat_HB_Tank_Small", "S_Heat_HLI_Tank_Large", "S_CAES"])
-                if (i-1 + Switch.elmod_starthour/Switch.elmod_hourstep) % (24/Switch.elmod_hourstep) == 0
+            # empty the short-term storages at the start of every day (CAES: every second day)
+            for (s, period) in (("S_Battery_Li-Ion", 24), ("S_Battery_Redox", 24), ("S_HB_Tank_Small", 24), ("S_HLI_Tank_Large", 24), ("S_CAES", 48))
+                s ∈ Sets.Storage || continue
+                if (i + Switch.elmod_starthour/Switch.elmod_hourstep) % (period/Switch.elmod_hourstep) == 0
                     JuMP.fix(Vars.StorageLevelTSStart[s,y,Sets.Timeslice[i],r], 0; force = true)
                 end
             end
         end
         if "P_CSP" ∈ Sets.Technology
             try
-                Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Opt",Sets.Timeslice[i],y]
+                Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Tracking",Sets.Timeslice[i],y]
             catch e
                 if isa(e, KeyError)
                     Params.CapacityFactor[r,"P_CSP",Sets.Timeslice[i],y] = Params.CapacityFactor[r,"P_PV_Utility_Avg",Sets.Timeslice[i],y]

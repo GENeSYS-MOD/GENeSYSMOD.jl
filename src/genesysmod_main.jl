@@ -18,7 +18,8 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     elmod_dunkelflaute = 0, switch_raw_results = NoRawResult(), switch_processed_results = 0, write_reduced_timeserie = 1, load_reduced_timeserie = 0, switch_LCOE_calc=0,
     switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
     switch_endogenous_specifieddemandforecasting=1,
-    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1)
+    extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1,
+    project_scenario="none")
 
     if elmod_nthhour != 0 && (elmod_daystep !=0 || elmod_hourstep !=0)
         @warn "Both elmod_nthhour and elmod_daystep/elmod_hourstep are defined.
@@ -93,7 +94,8 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     switch_reserve,
     switch_errorcheck,
     switch_results_db,
-    switch_endogenous_specifieddemandforecasting)
+    switch_endogenous_specifieddemandforecasting,
+    project_scenario)
 
     model= JuMP.Model()
 
@@ -139,6 +141,22 @@ function genesysmod_build_model(;elmod_daystep, elmod_hourstep, solver=nothing, 
     println("Build: scenariodata : ", Dates.now()-_tb); _tb = Dates.now()
 
     #
+    # ####### load an optional project-specific scenario overlay #############
+    #
+
+    if switch.project_scenario != "none"
+        prj_file = "genesysmod_scenariodata_$(switch.project_scenario).jl"
+        prj_path = joinpath(pkgdir(GENeSYSMOD),"src","projects", prj_file)
+        modname = Symbol("ScenarioData", uppercasefirst(switch.project_scenario))
+        if !isfile(prj_path) || !isdefined(GENeSYSMOD, modname)
+            error("project_scenario $(switch.project_scenario) requested but $(prj_path) was not found")
+        end
+        project_module = getfield(GENeSYSMOD, modname)
+        project_module.genesysmod_scenariodata(model,Sets,Params,Maps,Vars,switch)
+        println("Build: project scenario : ", Dates.now()-_tb); _tb = Dates.now()
+    end
+
+    #
     # ####### Input-data error checks (port of genesysmod_errorcheck.gms) #############
     # Runs after bounds + scenariodata, like the GAMS include order, so the
     # programmatic parameter fills (ImportTechnology OperationalLife,
@@ -181,7 +199,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_reserve=0,switch_base_year_bounds_debugging=0, switch_errorcheck=2, switch_results_db=0,
     switch_endogenous_specifieddemandforecasting=1,
     extr_str_results = "inv_run", extr_str_dispatch="dispatch_run",switch_iis=1, solver_log=true, solver_attr=Dict(),
-    switch_test_data_load=0, switch_dump_input_data=0)
+    switch_test_data_load=0, switch_dump_input_data=0, project_scenario="none")
 
     starttime = Dates.now()
 
@@ -212,7 +230,7 @@ function genesysmod(;elmod_daystep, elmod_hourstep, solver, DNLPsolver, year=201
     switch_reserve=switch_reserve, switch_errorcheck=switch_errorcheck, switch_results_db=switch_results_db,
     switch_endogenous_specifieddemandforecasting=switch_endogenous_specifieddemandforecasting,
     extr_str_results = extr_str_results, extr_str_dispatch=extr_str_dispatch,
-    switch_iis=switch_iis);
+    switch_iis=switch_iis, project_scenario=project_scenario);
     t_build_end = Dates.now()
     Sets = case["Sets"]
     Params = case["Params"]

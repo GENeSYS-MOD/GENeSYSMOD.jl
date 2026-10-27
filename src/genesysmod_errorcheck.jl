@@ -68,6 +68,9 @@ Warnings (printed, run continues):
      summed RegionalBaseYearProduction in the start year exceeds
      SpecifiedAnnualDemand for the fuel — only consistent with exports/trade or
      curtailment, otherwise a data-entry mistake (warning, never aborts)
+ 28. TotalAnnualMaxCapacity below the 2025 TotalAnnualMinCapacity. All checks see
+     the raw data; the cap is raised to that minimum after them (also when the
+     checks are switched off)
 
 `Switch.switch_errorcheck`:
   0 = skip all checks
@@ -77,7 +80,10 @@ Warnings (printed, run continues):
       warnings never abort
 """
 function genesysmod_errorcheck(Sets, Params, Switch)
-    Switch.switch_errorcheck != 0 || return
+    if Switch.switch_errorcheck == 0
+        raise_max_capacity_to_min!(Sets, Params)
+        return
+    end
 
     𝓡 = Sets.Region_full
     𝓣 = Sets.Technology
@@ -108,6 +114,16 @@ function genesysmod_errorcheck(Sets, Params, Switch)
     end
 
     dummy_techs = Set(get(Params.Tags.TagTechnologyToSubsets, "DummyTechnology", String[]))
+
+    # 28 — WARNING: TotalAnnualMaxCapacity below the 2025 TotalAnnualMinCapacity.
+    # The cap is raised to that minimum after all checks, so they see the raw data.
+    if 2025 ∈ 𝓨
+        off = [(r, t, y, Params.TotalAnnualMaxCapacity[r,t,y], Params.TotalAnnualMinCapacity[r,t,2025])
+               for r ∈ 𝓡 for t ∈ 𝓣 for y ∈ 𝓨
+               if Params.TotalAnnualMaxCapacity[r,t,y] < Params.TotalAnnualMinCapacity[r,t,2025]]
+        report!(:warn, "TotalAnnualMinCapacityTooHigh", off,
+            "TotalAnnualMaxCapacity is below the 2025 TotalAnnualMinCapacity. The cap is raised to that minimum.")
+    end
 
     # 1 — Technology missing from Sector list
     off = [t for t ∈ 𝓣 if t ∉ dummy_techs && all(Params.Tags.TagTechnologyToSector[t,se] == 0 for se ∈ 𝓢𝓮)]
@@ -496,6 +512,8 @@ function genesysmod_errorcheck(Sets, Params, Switch)
         println("Build:   errorcheck : findings written to $(fn)")
     end
 
+    raise_max_capacity_to_min!(Sets, Params)
+
     if nerrors > 0
         if Switch.switch_errorcheck == 2
             error("genesysmod_errorcheck: $(nerrors) input-data check(s) failed — see the error log above. " *
@@ -505,6 +523,21 @@ function genesysmod_errorcheck(Sets, Params, Switch)
         end
     else
         println("Build:   errorcheck : no hard input-data errors")
+    end
+    return
+end
+
+"""
+Raise TotalAnnualMaxCapacity to the 2025 TotalAnnualMinCapacity wherever it falls below
+it, so the two bounds cannot contradict each other. Runs even when the input-data checks
+are switched off.
+"""
+function raise_max_capacity_to_min!(Sets, Params)
+    2025 ∈ Sets.Year || return
+    for r ∈ Sets.Region_full, t ∈ Sets.Technology, y ∈ Sets.Year
+        if Params.TotalAnnualMaxCapacity[r,t,y] < Params.TotalAnnualMinCapacity[r,t,2025]
+            Params.TotalAnnualMaxCapacity[r,t,y] = Params.TotalAnnualMinCapacity[r,t,2025]
+        end
     end
     return
 end

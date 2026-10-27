@@ -1,6 +1,39 @@
 Release Notes
 =============
 
+## Unreleased
+Mirrors GENeSYS_MOD.gms PR #42.
+- **Project scenario overlays.** New `project_scenario` switch (default `"none"`) loads
+  `src/projects/genesysmod_scenariodata_<name>.jl` after the region scenario data;
+  requesting an overlay that does not exist aborts the run. First overlay: `man0euvre`
+  (Man0EUvRE country case studies). It now holds the per-pathway HHI scrap-EAF caps,
+  road modal-split decrement, ETS trading tag and the NECP capacity plans that used to
+  live in the Europe scenario data.
+- **Peaking:** `PeakingSlack` is a parameter per region and year (initialised from
+  `set_peaking_slack`), plus a region-specific `PeakingSlackAdd` that scenario data can
+  set. PC3, PC3b and PC4 now bind from `set_peaking_startyear` itself (`>=`, was `>`).
+- **District heating:** the DH limits and sector split moved from the Europe scenario
+  data into the core equations as DH1a / DH1b / DH2. They now apply to every region and
+  pathway whose data sets `DistrictHeatDemand` / `DistrictHeatSplit`, and to dispatch
+  runs: there the annual bands are scaled to the share of the year being modelled
+  (`dispatch_week`), and the TwoNodes "Rest" region gets a district-heat-demand-weighted
+  split and `X_Convert_HD` ratio.
+- **CSP:** the capacity factor is derived from `P_PV_Utility_Tracking` instead of
+  `P_PV_Utility_Opt`. This changes CSP results wherever CSP is built.
+- **Group capacity limits:** explicit zero `GroupTotalAnnualMaxCapacity` values are
+  treated as unset (999999) instead of a hard zero cap. Technologies with a 2025 group
+  minimum are exempt from the Europe 2025 historic-capacity lock, which is now a
+  `NewCapacity` upper bound rather than a constraint.
+- **Storage daily reset** now matches the GAMS rule: the timeslice index was off by one,
+  so with `elmod_starthour = 0` the first timeslice was emptied, which pinned the year-start
+  level of the battery storages to 0 and made any forced battery capacity infeasible (S1b).
+  `S_CAES` now resets every 48 h, and the heat tanks (`S_HB_Tank_Small`,
+  `S_HLI_Tank_Large`) are reset at all; they were listed under names absent from the data.
+- **Input checks:** new warning `TotalAnnualMinCapacityTooHigh` (TotalAnnualMaxCapacity
+  below the 2025 TotalAnnualMinCapacity). The cap is raised to that minimum in
+  `genesysmod_errorcheck` for every region (previously only in the Europe scenario
+  data), also when `switch_errorcheck = 0`.
+  
 ## v4.5.0
 - One DuckDB file: the results database and the input-data dump database are merged
   into a single `genesysmod_db.duckdb` (result tables `output_*`/`raw_*`/`varpar_*`/

@@ -277,6 +277,11 @@ for the Buildings and Industry sector across the year. This is a lower bound. Un
 - **`DeclineRate ::Union{Nothing,JuMP.Containers.DenseAxisArray}`** \n TODO
 - **`x_peakingDemand ::Union{Nothing,JuMP.Containers.DenseAxisArray}`** Peak demand in the
     original timeseries. Used for the peaking constraints.\n
+- **`PeakingSlack ::JuMP.Containers.DenseAxisArray`** Capacity margin required on top of
+    peak demand, per region and year. Initialised from `set_peaking_slack`. Unit: Factor.\n
+- **`PeakingSlackAdd ::JuMP.Containers.DenseAxisArray`** Region-specific addition to
+    `PeakingSlack`, set by scenario data and applied from `set_peaking_startyear` on.
+    Defaults to 0. Unit: Factor.\n
 - **`TagDemandFuelToSector ::JuMP.Containers.DenseAxisArray`** Tag to link fuels to sectors.\n
 - **`TagElectricTechnology ::JuMP.Containers.DenseAxisArray`** Indicate if a technology is
     considered to be "direct electrification".\n
@@ -402,6 +407,9 @@ struct Parameters <: InputClass
     x_peakingDemand ::Union{Nothing,JuMP.Containers.DenseAxisArray}
 
     StorageE2PRatio ::Union{Nothing,JuMP.Containers.DenseAxisArray}
+
+    PeakingSlack ::JuMP.Containers.DenseAxisArray
+    PeakingSlackAdd ::JuMP.Containers.DenseAxisArray
 end
 
 const VarDenseIS = JuMP.Containers.DenseAxisArray{VariableRef, 2, Tuple{Vector{Int}, Vector{String}}, Tuple{JuMP.Containers._AxisLookup{Dict{Int, Int}}, JuMP.Containers._AxisLookup{Dict{String, Int}}}}
@@ -810,6 +818,9 @@ run that will be read to fix some decision variables.\n
   If 0, the per-year values read from `Par_SpecifiedAnnualDemand` are used directly,
   so each year reflects the input data instead of being derived from year 1 — note
   that datasets without per-year rows would then see zero demand in later years.\n
+- **`project_scenario ::String`** Optional project-specific scenario overlay, loaded after
+  the region scenario data from `src/projects/genesysmod_scenariodata_<project_scenario>.jl`.
+  Default `"none"` (no overlay). Requesting an overlay that does not exist aborts the run.\n
 """
 struct Switch <: InputClass
     StartYear :: Int16
@@ -866,6 +877,7 @@ struct Switch <: InputClass
     switch_errorcheck ::Int8
     switch_results_db ::Int8
     switch_endogenous_specifieddemandforecasting ::Int8
+    project_scenario ::String
 end
 
 """

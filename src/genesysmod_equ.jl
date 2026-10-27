@@ -1176,6 +1176,45 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   end end
   print("Cstr: Storage 1 : ",Dates.now()-start,"\n")
 
+  ######### District Heating Equations #############
+  start=Dates.now()
+  if "Heat_District" ∈ 𝓕
+    dh_techs = [t for (t,f) ∈ Maps.Set_Tech_FuelOut if f == "Heat_District"]
+    convert_techs = get(Params.Tags.TagTechnologyToSubsets, "Convert", String[])
+    dh_split_tf = Dict(se => [(t,f) for (t,f) ∈ Maps.Set_Tech_FuelOut
+                              if Params.Tags.TagDemandFuelToSector[f,se] != 0 && t ∈ convert_techs] for se ∈ 𝓢𝓮)
+    # fuels that district heat is converted into (outputs of techs using Heat_District)
+    dh_fed_fuels = unique([f for (t,f) ∈ Maps.Set_Tech_FuelOut if (t,"Heat_District") ∈ Maps.Set_Tech_FuelIn])
+    # Share of the annual district heat falling in the modelled timeslices. 1 in investment
+    # runs; a dispatch over part of the year (dispatch_week) scales the annual bands to that
+    # part, using the demand of the fuels district heat feeds.
+    function dh_period_share(r, y, fuels)
+      Switch.switch_dispatch isa NoDispatch && return 1.0
+      annual = sum(Params.SpecifiedAnnualDemand[r,f,y] for f ∈ fuels; init=0.0)
+      annual > 0 || return 1.0
+      return sum(Params.Demand[y,l,f,r] for f ∈ fuels for l ∈ 𝓛; init=0.0) / annual
+    end
+    for r ∈ 𝓡, y ∈ 𝓨
+      if Params.DistrictHeatDemand[r,y] != 0 && !isempty(dh_techs)
+        dh_conv = "X_Convert_HD" ∈ 𝓣 ? Params.InputActivityRatio[r,"X_Convert_HD","Heat_District",1,y] : 0.0
+        dh_annual = Params.DistrictHeatDemand[r,y]*dh_conv*dh_period_share(r, y, dh_fed_fuels)
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) >= dh_annual*0.95,
+        base_name="DH1a_DistrictHeatProductionAnnualLowerLimit|$(r)|Heat_District|$(y)")
+        @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,"Heat_District",r] for t ∈ dh_techs) <= dh_annual*1.05,
+        base_name="DH1b_DistrictHeatProductionAnnualUpperLimit|$(r)|Heat_District|$(y)")
+      end
+      for se ∈ 𝓢𝓮
+        if Params.DistrictHeatSplit[r,se,y] != 0 && !isempty(dh_split_tf[se])
+          se_fuels = intersect(unique(f for (t,f) ∈ dh_split_tf[se]), dh_fed_fuels)
+          se_share = dh_period_share(r, y, isempty(se_fuels) ? unique(f for (t,f) ∈ dh_split_tf[se]) : se_fuels)
+          @constraint(model, sum(Vars.ProductionByTechnologyAnnual[y,t,f,r] for (t,f) ∈ dh_split_tf[se]) >= Params.DistrictHeatDemand[r,y]*Params.DistrictHeatSplit[r,se,y]*se_share,
+          base_name="DH2_DistrictHeatProductionSplit|$(r)|$(se)|$(y)")
+        end
+      end
+    end
+  end
+  print("Cstr: District Heat : ",Dates.now()-start,"\n")
+
   ######### Transportation Equations #############
   start=Dates.now()
   if Switch.switch_dispatch isa TwoNodes
@@ -1364,7 +1403,12 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
   start=Dates.now()
   if Switch.switch_peaking_capacity == 1
     GWh_to_PJ = 0.0036
-    PeakingSlack = Switch.set_peaking_slack
+    # apply region-specific peaking slack additions set by scenario data (no-op if none)
+    for r ∈ 𝓡, y ∈ 𝓨
+      if y >= Switch.set_peaking_startyear && Params.PeakingSlackAdd[r] > 0
+        Params.PeakingSlack[r,y] += Params.PeakingSlackAdd[r]
+      end
+    end
     MinRunShare = Switch.set_peaking_minrun_share
     RenewableCapacityFactorReduction = Switch.set_peaking_res_cf
     MinThermalShare = Switch.set_peaking_min_thermal
@@ -1385,17 +1429,17 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
         for t ∈ setdiff(𝓣,Params.Tags.TagTechnologyToSubsets["StorageDummies"]) if ((t,"Power") in Maps.Set_Tech_FuelOut && sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t]) != 0)),
         base_name="PC2_PowerPeakingCapacity|$(y)|$(r)")
 
-      if y >Switch.set_peaking_startyear
+      if y >= Switch.set_peaking_startyear
         @constraint(model,
         Vars.PeakingCapacity[y,r] + (Switch.switch_peaking_with_trade == 1 ? sum(Vars.TotalTradeCapacity[y,"Power",rr,r] for rr ∈ [z for (f,x,z) in Maps.Set_Fuel_Regions if f == "Power" && x == r]) : 0)
         + (Switch.switch_peaking_with_storages == 1 ? sum(Vars.TotalCapacityAnnual[y,t,r] for t ∈ StorageDummies_techs if (sum(Params.OutputActivityRatio[r,t,"Power",m,y] for m ∈ Maps.Tech_MO[t];init=0) != 0 && sum(sum(Params.TechnologyToStorage[t,:,m,y]) for m ∈ Maps.Tech_MO[t];init=0) != 0)) : 0)
-        >= Vars.PeakingDemand[y,r]*PeakingSlack,
+        >= Vars.PeakingDemand[y,r]*Params.PeakingSlack[r,y],
         base_name="PC3_PeakingConstraint|$(y)|$(r)")
       end
 
       if Switch.switch_peaking_with_storages == 1
-        if y > Switch.set_peaking_startyear
-            @constraint(model, Vars.PeakingCapacity[y,r] >= MinThermalShare*Vars.PeakingDemand[y,r]*PeakingSlack,
+        if y >= Switch.set_peaking_startyear
+            @constraint(model, Vars.PeakingCapacity[y,r] >= MinThermalShare*Vars.PeakingDemand[y,r]*Params.PeakingSlack[r,y],
             base_name="PC3b_PeakingConstraint_Thermal|$(y)|$(r)")
         end
       end
@@ -1408,7 +1452,7 @@ function genesysmod_equ(model,Sets,Params, Vars,Emp_Sets,Settings,Switch, Maps; 
             ((cap_has_ub[y,t,r] && cap_ub[y,t,r] > 0) ||
             (!cap_has_ub[y,t,r] && !cap_is_fixed[y,t,r]) ||
             (cap_is_fixed[y,t,r] && cap_fix_val[y,t,r] > 0)) &&
-            y > Switch.set_peaking_startyear)
+            y >= Switch.set_peaking_startyear)
             @constraint(model,
             sum(sum(Vars.RateOfActivity[y,l,t,m,r] for m ∈ Maps.Tech_MO[t])*Params.YearSplit[l,y] for l ∈ 𝓛 ) >=
             sum(Vars.TotalCapacityAnnual[y,t,r]*Params.CapacityFactor[r,t,l,y]*Params.YearSplit[l,y]*Params.AvailabilityFactor[r,t,y]*Params.CapacityToActivityUnit[t] for l ∈ 𝓛 )*MinRunShare,
