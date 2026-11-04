@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+## Unreleased
+- Fix: the storage rows of `output_technology_costs_detailed` (`Levelized Costs [Total]`,
+  MEUR/PJ and EUR/MWh) had the `Fuel` and `Year` columns swapped. `lc_tot_st` is now
+  built with the year as the last dimension (Region, Technology, Fuel, Year), the order
+  it is written in.
+
 ## v4.5.0
 - One DuckDB file: the results database and the input-data dump database are merged
   into a single `genesysmod_db.duckdb` (result tables `output_*`/`raw_*`/`varpar_*`/
